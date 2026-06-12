@@ -1,60 +1,84 @@
 # watch-woocommerce-automation
 
-WooCommerce専用のGoogle Apps Script自動化リポジトリです。
+WooCommerce automation for watch-tokyo.com.
+
+This repository is for WooCommerce only.  
+Do not mix eBay automation, eBay API, eBay listing logic, or eBay sales logic into this repository.
 
 ## Purpose
 
-This project is only for WooCommerce store automation.
+This project manages WooCommerce product update workflow using Google Apps Script and Google Sheets.
 
-## Script Properties
+Main goals:
 
-Set these values in Google Apps Script project properties:
+- Extract WooCommerce product candidates from `WC_Products`
+- Review and prepare updates in `WC_Keep_Active`
+- Update WooCommerce products safely by using `WC Update Action = UPDATE`
+- Keep API keys and secrets outside source code
+- Keep WooCommerce automation separated from eBay automation
+
+## Important Safety Rules
+
+Do not write secrets directly in source code or README.
+
+Never commit:
+
+- WooCommerce Consumer Key actual value
+- WooCommerce Consumer Secret actual value
+- Access token
+- Refresh token
+- Password
+- Private API keys
+
+Use Google Apps Script Properties instead.
+
+Allowed property names:
 
 - `WC_SITE_URL`
 - `WC_CONSUMER_KEY`
 - `WC_CONSUMER_SECRET`
 
-## Files
+## Main Sheets
 
-- `Code.gs` - Entry points for manual runs and scheduled triggers.
-- `config.gs` - Reads and validates WooCommerce configuration.
-- `woocommerce.gs` - WooCommerce REST API client helpers and product update routine.
-- `keep_active.gs` - Lightweight keep-alive/health check routine.
-- `utils.gs` - Shared logging, URL, response, and sheet helpers.
+### WC_Products
 
-## Quick Check
+Source product list from WooCommerce.
 
-Run `runWooCommerceHealthCheck()` from Apps Script after setting the required Script Properties.
+### WC_Keep_Active
 
-## Main Functions
+Main working sheet for product update candidates.
 
-- `runWooCommerceHealthCheck()`
-- `runWooCommerceProductSample()`
-- `testFetchWooCommerceProducts()`
-- `fetchWooCommerceProducts(params)`
-- `fetchWooCommerceProduct(productId)`
-- `updateWooCommerceProduct(productId, fields)`
-- `updateWooCommerceProductPrice(productId, regularPrice, salePrice)`
-- `updateWooCommerceProductStock(productId, stockQuantity, manageStock)`
-- `updateWooProductsFromKeepActive()`
-- `keepWooCommerceAutomationActive()`
+Important columns:
 
-## WC_Keep_Active Product Update Operation
+- `ID`
+- `SKU`
+- `Name`
+- `Price`
+- `Regular Price`
+- `Stock Status`
+- `Stock Quantity`
+- `WC Update Action`
+- `New Price`
+- `New Stock Status`
+- `New Stock Quantity`
+- `WC Sync Status`
+- `WC Synced At`
+- `WC Sync Error`
 
-WooCommerceの商品を更新する場合は、対象シート `WC_Keep_Active` の更新したい行だけに以下を入力します。
+### WC_Todo_Check
 
-- T列 `WC Update Action`: `UPDATE`
-- U列 `New Price`: 新しい通常価格
-- V列 `New Stock Status`: `instock`, `outofstock`, `onbackorder` のいずれか
-- W列 `New Stock Quantity`: 新しい在庫数量
+Optional support sheet for manual review.  
+This sheet is useful for checking products, but the priority logic may be improved later.
 
-入力後、Google Apps Script で `updateWooProductsFromKeepActive()` を実行します。
+## Operation Flow
 
-処理対象になるのは `WC Update Action` が `UPDATE` の行だけです。WooCommerce API の PUT 更新が成功すると、対象行は次のように更新されます。
+### A. Update or prepare WC_Products
 
-- `WC Sync Status`: `UPDATED`
-- `WC Synced At`: 同期日時
-- `WC Sync Error`: 空白
-- `WC Update Action`: 空白に自動クリア
+Refresh or prepare WooCommerce product data in `WC_Products`.
 
-誤更新を防ぐため、成功後の `UPDATE` は自動で消えます。エラーになった行は `WC Sync Status` が `ERROR` になり、`WC Sync Error` に内容が記録されます。
+### B. Build update candidates
+
+Run:
+
+```javascript
+buildWooKeepActiveCandidates()
