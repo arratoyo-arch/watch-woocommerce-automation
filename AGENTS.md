@@ -1,4 +1,4 @@
-Add AGENTS instructions
+
 # AGENTS.md
 
 ## Repository Scope
