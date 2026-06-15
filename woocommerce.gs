@@ -199,6 +199,8 @@ function checkWooCommerceConnection() {
   };
 }
 
+// Draft creation keeps using the shared WooCommerce API helpers above so the
+// existing semi-automatic update flow remains intact.
 var WOO_DRAFT_DW5750UE1JF_MODEL = 'DW-5750UE-1JF';
 
 /**
