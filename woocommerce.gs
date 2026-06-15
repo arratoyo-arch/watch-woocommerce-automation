@@ -198,3 +198,174 @@ function checkWooCommerceConnection() {
     settings: result.settings || {}
   };
 }
+
+var WOO_DRAFT_DW5750UE1JF_MODEL = 'DW-5750UE-1JF';
+
+/**
+ * Creates a WooCommerce product.
+ */
+function createWooCommerceProduct(payload) {
+  if (!payload || Object.keys(payload).length === 0) {
+    throw new Error('payload is required.');
+  }
+
+  return callWooCommerceApi_('products', {}, 'post', payload);
+}
+
+/**
+ * Checks whether a WooCommerce product already exists by SKU or model text.
+ */
+function findWooProductBySkuOrModel_(skuOrModel) {
+  assertRequiredValue_(skuOrModel, 'skuOrModel');
+
+  var target = normalizeWooModelText_(skuOrModel);
+  var exactSkuMatches = fetchWooCommerceProducts({
+    sku: skuOrModel,
+    status: 'any'
+  });
+
+  if (exactSkuMatches && exactSkuMatches.length > 0) {
+    return exactSkuMatches[0];
+  }
+
+  var page = 1;
+  var perPage = 100;
+
+  while (true) {
+    var products = fetchWooCommerceProducts({
+      per_page: perPage,
+      page: page,
+      status: 'any',
+      search: skuOrModel
+    });
+
+    if (!products || products.length === 0) {
+      return null;
+    }
+
+    for (var i = 0; i < products.length; i++) {
+      var product = products[i];
+      var sku = normalizeWooModelText_(product.sku);
+      var name = normalizeWooModelText_(product.name);
+      var slug = normalizeWooModelText_(product.slug);
+      var description = normalizeWooModelText_(stripHtml_(product.description));
+      var shortDescription = normalizeWooModelText_(stripHtml_(product.short_description));
+
+      if (
+        sku === target ||
+        name.indexOf(target) !== -1 ||
+        slug.indexOf(target) !== -1 ||
+        description.indexOf(target) !== -1 ||
+        shortDescription.indexOf(target) !== -1
+      ) {
+        return product;
+      }
+    }
+
+    if (products.length < perPage) {
+      return null;
+    }
+
+    page += 1;
+  }
+}
+
+/**
+ * Dry run for creating the DW-5750UE-1JF WooCommerce draft product.
+ */
+function dryRunCreateWooDraft_DW5750UE1JF() {
+  var existingProduct = findWooProductBySkuOrModel_(WOO_DRAFT_DW5750UE1JF_MODEL);
+
+  if (existingProduct) {
+    Logger.log('SKIP: already exists');
+    Logger.log('Existing product ID: ' + existingProduct.id);
+    Logger.log('Existing SKU: ' + existingProduct.sku);
+    Logger.log('Existing status: ' + existingProduct.status);
+    return { skipped: true, product: existingProduct };
+  }
+
+  var payload = buildWooDraftPayload_DW5750UE1JF_();
+  Logger.log('DRY RUN: WooCommerce draft product payload');
+  Logger.log(JSON.stringify(payload, null, 2));
+
+  return { skipped: false, payload: payload };
+}
+
+/**
+ * Creates the DW-5750UE-1JF WooCommerce draft product after duplicate check.
+ */
+function createWooDraft_DW5750UE1JF() {
+  var existingProduct = findWooProductBySkuOrModel_(WOO_DRAFT_DW5750UE1JF_MODEL);
+
+  if (existingProduct) {
+    Logger.log('SKIP: already exists');
+    Logger.log('Existing product ID: ' + existingProduct.id);
+    Logger.log('Existing SKU: ' + existingProduct.sku);
+    Logger.log('Existing status: ' + existingProduct.status);
+    return { skipped: true, product: existingProduct };
+  }
+
+  var payload = buildWooDraftPayload_DW5750UE1JF_();
+  var createdProduct = createWooCommerceProduct(payload);
+
+  Logger.log('WooCommerce draft product created. Human check required before publish.');
+  Logger.log('Product ID: ' + createdProduct.id);
+  Logger.log('SKU: ' + createdProduct.sku);
+  Logger.log('Status: ' + createdProduct.status);
+  Logger.log('Regular price: ' + createdProduct.regular_price);
+  Logger.log('Sale price: ' + createdProduct.sale_price);
+  Logger.log('Stock quantity: ' + createdProduct.stock_quantity);
+
+  return { skipped: false, product: createdProduct };
+}
+
+function buildWooDraftPayload_DW5750UE1JF_() {
+  return {
+    name: 'Casio G-SHOCK DW-5750UE-1JF 5700 Series Digital Watch Japan Model',
+    type: 'simple',
+    status: 'draft',
+    sku: WOO_DRAFT_DW5750UE1JF_MODEL,
+    regular_price: '149.99',
+    sale_price: '139.99',
+    manage_stock: true,
+    stock_quantity: 1,
+    stock_status: 'instock',
+    shipping_required: true,
+    short_description: 'A classic round-face G-SHOCK from the 5700 series, inspired by the original 1987 DW-5700C design. The DW-5750UE-1JF features a durable shock-resistant resin case, 200-meter water resistance, LED backlight, stopwatch, timer, alarm, and a practical 5-year battery life. A simple and reliable Japan model for everyday use.',
+    description: 'The Casio G-SHOCK DW-5750UE-1JF is a classic round digital model from the popular 5700 series. Inspired by the original DW-5700C released in 1987, this watch keeps the simple and iconic G-SHOCK look while offering practical everyday functions.\n\nIt features shock-resistant construction, 200-meter water resistance, a resin case and band, mineral glass, LED backlight, stopwatch, countdown timer, alarm, and calendar functions. With its lightweight 52g body and approximately 5-year battery life, it is a reliable daily watch for casual, outdoor, and active use.\n\nThis is a Japan model and a good choice for customers looking for a clean, classic G-SHOCK design outside the standard square 5600 series.\n\nHuman check required before publish. Shipping: Free shipping.',
+    categories: [
+      { name: 'Casio' },
+      { name: 'G-SHOCK' },
+      { name: 'Digital Watches' },
+      { name: 'Men’s Watches' }
+    ],
+    tags: [
+      { name: 'Casio' },
+      { name: 'G-SHOCK' },
+      { name: 'DW-5750UE-1JF' },
+      { name: 'DW-5750' },
+      { name: '5700 Series' },
+      { name: 'Japan Model' },
+      { name: 'JDM' },
+      { name: 'Digital Watch' },
+      { name: 'Black Watch' },
+      { name: 'Shock Resistant' },
+      { name: '200m Water Resistant' }
+    ],
+    meta_data: [
+      { key: 'model', value: WOO_DRAFT_DW5750UE1JF_MODEL },
+      { key: 'brand', value: 'Casio' },
+      { key: 'series', value: 'G-SHOCK 5700 Series' },
+      { key: 'shipping_note', value: 'Free shipping' },
+      { key: 'human_check_required', value: 'yes' }
+    ]
+  };
+}
+
+function normalizeWooModelText_(value) {
+  return String(value || '').trim().toUpperCase();
+}
+
+function stripHtml_(value) {
+  return String(value || '').replace(/<[^>]*>/g, ' ');
+}
