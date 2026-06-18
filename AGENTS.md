@@ -33,6 +33,35 @@ eBay automation must be handled in a separate repository.
 
 ---
 
+
+## WooCommerce / WDB Only Boundary
+
+This repository is ONLY for WooCommerce and Woo Draft Bridge operations.
+
+Allowed:
+
+* WooCommerce product sync
+* Woo Draft Bridge / WDB
+* Woo draft candidate generation
+* Woo product improvement candidates
+* Woo API product read/create/update logic
+* watch-tokyo.com product draft workflow
+
+Forbidden:
+
+* eBay Active_listing
+* eBay Listing_plan
+* Price_Up_Candidates
+* Sell Similar
+* eBay Trading API
+* eBay Revise Price
+* Ebay_New_Listing_Candidates
+* Ebay_Restock_Candidates
+
+If a task mentions eBay seller operations, stop and say it belongs in `watch-ebay-automation`.
+
+---
+
 ## Basic Instruction for Codex
 
 When working in this repository, treat it as a WooCommerce semi-automation project.

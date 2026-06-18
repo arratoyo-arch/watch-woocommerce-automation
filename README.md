@@ -1,5 +1,10 @@
-
 # watch-woocommerce-automation
+
+> [!WARNING]
+> **日本語:** このリポジトリは WooCommerce / WDB（Woo Draft Bridge）専用です。eBay出品管理・価格改定・Sell Similar作業は禁止です。eBay作業は `watch-ebay-automation` で行ってください。
+>
+> **English:** This repository is ONLY for WooCommerce / WDB (Woo Draft Bridge). eBay listing management, price revision, and Sell Similar work are forbidden. Handle eBay work in `watch-ebay-automation`.
+
 
 WooCommerce semi-automation repository for watch-tokyo.com.
 
