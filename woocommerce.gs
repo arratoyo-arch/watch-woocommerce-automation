@@ -323,11 +323,13 @@ function createWooDraft_DW5750UE1JF() {
 }
 
 function buildWooDraftPayload_DW5750UE1JF_() {
-  var productInfo = {
+  var payload = buildWooCustomerFriendlyDraftPayload_({
     model: WOO_DRAFT_DW5750UE1JF_MODEL,
     brand: 'Casio',
     series: 'G-SHOCK 5700 Series',
-    keyFeatures: [
+    title: 'Casio G-SHOCK DW-5750UE-1JF 5700 Series Digital Watch Japan Model',
+    price: '149.99',
+    features: [
       'Japan domestic model / JDM',
       'Authentic product sourced from Japan',
       'Shock-resistant construction',
@@ -336,88 +338,81 @@ function buildWooDraftPayload_DW5750UE1JF_() {
       'Approximately 5-year battery life'
     ],
     condition: 'New / unused item sourced from Japan.',
-    note: WOO_DRAFT_CUSTOMER_FRIENDLY_NOTE
-  };
+    categoryNames: ['Casio', 'G-SHOCK', 'Digital Watches', 'Men’s Watches'],
+    tags: [
+      'DW-5750',
+      '5700 Series',
+      'Digital Watch',
+      'Black Watch',
+      'Shock Resistant',
+      '200m Water Resistant'
+    ]
+  });
+
+  payload.sale_price = '139.99';
+  payload.manage_stock = true;
+  payload.stock_quantity = 1;
+  payload.stock_status = 'instock';
+
+  return payload;
+}
+
+function buildWooCustomerFriendlyDraftPayload_(product) {
+  var productInfo = normalizeWooCustomerFriendlyProduct_(product);
 
   return {
-    name: 'Casio G-SHOCK DW-5750UE-1JF 5700 Series Digital Watch Japan Model',
+    name: productInfo.title,
     type: 'simple',
     status: 'draft',
-    sku: WOO_DRAFT_DW5750UE1JF_MODEL,
-    regular_price: '149.99',
-    sale_price: '139.99',
-    manage_stock: true,
-    stock_quantity: 1,
-    stock_status: 'instock',
+    sku: productInfo.model,
+    regular_price: String(productInfo.price),
     shipping_required: true,
     short_description: buildWooCustomerFriendlyShortDescription_(productInfo),
     description: buildWooCustomerFriendlyDescription_(productInfo),
-    categories: [
-      { name: 'Casio' },
-      { name: 'G-SHOCK' },
-      { name: 'Digital Watches' },
-      { name: 'Men’s Watches' }
-    ],
-    tags: [
-      { name: 'Casio' },
-      { name: 'G-SHOCK' },
-      { name: 'DW-5750UE-1JF' },
-      { name: 'DW-5750' },
-      { name: '5700 Series' },
-      { name: 'Japan Model' },
-      { name: 'JDM' },
-      { name: 'Ships from Japan' },
-      { name: 'Free Shipping' },
-      { name: 'New Unused' },
-      { name: 'Digital Watch' },
-      { name: 'Black Watch' },
-      { name: 'Shock Resistant' },
-      { name: '200m Water Resistant' }
-    ],
-    meta_data: [
-      { key: 'model', value: WOO_DRAFT_DW5750UE1JF_MODEL },
-      { key: 'brand', value: 'Casio' },
-      { key: 'series', value: 'G-SHOCK 5700 Series' },
-      { key: 'shipping_note', value: 'Free international shipping from Japan with tracking' },
-      { key: 'condition_note', value: 'New / unused item sourced from Japan' },
-      { key: 'customs_note', value: 'Import duties, taxes, and customs fees are buyer responsibility where applicable' },
-      { key: 'human_check_required', value: 'yes' },
-      { key: 'publish_checklist', value: 'Confirm price, stock, images, categories, model number, specifications, shipping note, customs note, and final description before publishing.' }
-    ]
+    categories: productInfo.categoryNames.map(function(categoryName) {
+      return { name: categoryName };
+    }),
+    tags: buildWooCustomerFriendlyTags_(productInfo),
+    meta_data: buildWooCustomerFriendlyMetaData_(productInfo)
   };
 }
 
-function buildWooCustomerFriendlyShortDescription_(productInfo) {
+function buildWooCustomerFriendlyShortDescription_(product) {
+  var productInfo = normalizeWooCustomerFriendlyProduct_(product);
+
   return [
-    'New / unused ' + productInfo.brand + ' ' + productInfo.model + ' ' + productInfo.series + ' watch.',
-    'Japan domestic model / JDM and authentic product sourced from Japan.',
+    'New / unused ' + productInfo.brand + ' ' + productInfo.model + ' ' + productInfo.series + '.',
+    'Japan domestic model / JDM.',
     'Free international shipping from Japan with tracking.',
-    'Please check the model number, specifications, size, and compatibility before purchase.'
+    'Please check model number and specifications before purchase.'
   ].join(' ');
 }
 
-function buildWooCustomerFriendlyDescription_(productInfo) {
+function buildWooCustomerFriendlyDescription_(product) {
+  var productInfo = normalizeWooCustomerFriendlyProduct_(product);
+
   return [
     'Model: ' + productInfo.model,
     '',
     'Brand: ' + productInfo.brand,
+    '',
     'Series: ' + productInfo.series,
     '',
     'Key Features:',
-    buildWooBulletList_(productInfo.keyFeatures),
+    buildWooBulletList_(productInfo.features),
     '',
     'Condition:',
     productInfo.condition,
     '',
     'Shipping:',
-    'Free international shipping from Japan.',
+    productInfo.shippingNote,
     'We carefully pack and ship the item with tracking.',
     '',
     'Customs / Import Duties:',
-    "Import duties, taxes, and customs fees may be charged by your country and are the buyer's responsibility where applicable.",
+    productInfo.customsNote,
     '',
     'Before Purchase:',
-    'Please check the model number, specifications, size, and compatibility before purchase.',
+    productInfo.beforePurchaseNote,
     'If you have any questions, please contact us before ordering.',
     '',
     'Note:',
@@ -425,9 +420,114 @@ function buildWooCustomerFriendlyDescription_(productInfo) {
   ].join('\n');
 }
 
+function buildWooCustomerFriendlyTags_(product) {
+  var productInfo = normalizeWooCustomerFriendlyProduct_(product);
+  var tagNames = [];
+
+  [
+    productInfo.brand,
+    productInfo.series,
+    productInfo.model,
+    'Japan Model',
+    'JDM',
+    'Ships from Japan',
+    'Free Shipping',
+    'New Unused'
+  ].concat(productInfo.tags).forEach(function(tagName) {
+    var cleaned = trimString_(tagName);
+    if (!cleaned) {
+      return;
+    }
+
+    var exists = tagNames.some(function(existingTagName) {
+      return existingTagName.toLowerCase() === cleaned.toLowerCase();
+    });
+    if (!exists) {
+      tagNames.push(cleaned);
+    }
+  });
+
+  return tagNames.map(function(tagName) {
+    return { name: tagName };
+  });
+}
+
+function buildWooCustomerFriendlyMetaData_(product) {
+  var productInfo = normalizeWooCustomerFriendlyProduct_(product);
+
+  return [
+    { key: 'model', value: productInfo.model },
+    { key: 'brand', value: productInfo.brand },
+    { key: 'series', value: productInfo.series },
+    { key: 'shipping_note', value: productInfo.shippingNote },
+    { key: 'condition_note', value: productInfo.condition },
+    { key: 'customs_note', value: productInfo.customsNote },
+    { key: 'human_check_required', value: 'yes' },
+    { key: 'publish_checklist', value: 'Confirm price, stock, images, categories, model number, specifications, shipping note, customs note, and final description before publishing.' }
+  ];
+}
+
+function normalizeWooCustomerFriendlyProduct_(product) {
+  var source = product || {};
+  var model = trimString_(source.model) || 'Model to be confirmed';
+  var brand = trimString_(source.brand) || 'Brand to be confirmed';
+  var series = trimString_(source.series) || 'Series to be confirmed';
+  var title = trimString_(source.title) || [brand, series, model, 'Japan Domestic Model Watch'].join(' ');
+  var features = source.features || source.keyFeatures || [];
+
+  if (!Array.isArray(features)) {
+    features = [features];
+  }
+
+  features = features.map(function(feature) {
+    return trimString_(feature);
+  }).filter(function(feature) {
+    return !!feature;
+  });
+
+  if (features.length === 0) {
+    features = [
+      'Japan domestic model / JDM',
+      'Authentic product sourced from Japan'
+    ];
+  }
+
+  return {
+    model: model,
+    brand: brand,
+    series: series,
+    title: title,
+    price: source.price !== undefined && source.price !== null && source.price !== '' ? source.price : '0',
+    features: features,
+    condition: trimString_(source.condition) || 'New / unused item sourced from Japan.',
+    shippingNote: trimString_(source.shippingNote) || 'Free international shipping from Japan.',
+    customsNote: trimString_(source.customsNote) || "Import duties, taxes, and customs fees may be charged by your country and are the buyer's responsibility where applicable.",
+    beforePurchaseNote: trimString_(source.beforePurchaseNote) || 'Please check the model number, specifications, size, and compatibility before purchase.',
+    categoryNames: normalizeWooStringArray_(source.categoryNames),
+    tags: normalizeWooStringArray_(source.tags),
+    note: trimString_(source.note) || WOO_DRAFT_CUSTOMER_FRIENDLY_NOTE
+  };
+}
+
+function normalizeWooStringArray_(items) {
+  if (!items) {
+    return [];
+  }
+
+  if (!Array.isArray(items)) {
+    items = [items];
+  }
+
+  return items.map(function(item) {
+    return trimString_(item);
+  }).filter(function(item) {
+    return !!item;
+  });
+}
+
 function buildWooBulletList_(items) {
   return (items || []).map(function(item) {
-    return '* ' + item;
+    return '- ' + item;
   }).join('\n');
 }
 
@@ -448,6 +548,30 @@ function dryRunWooCustomerFriendlyDraftTemplate_DW5750UE1JF() {
     tags: payload.tags,
     meta_data: payload.meta_data
   };
+}
+
+function dryRunWooCustomerFriendlyDraftTemplateSample() {
+  var payload = buildWooCustomerFriendlyDraftPayload_({
+    model: 'GW-B5600HR-1JF',
+    brand: 'Casio',
+    series: 'G-SHOCK',
+    title: "Casio G-SHOCK GW-B5600HR-1JF Bluetooth Tough Solar Multiband 6 Men's Watch",
+    price: '219.99',
+    features: [
+      'Tough Solar',
+      'Bluetooth mobile link',
+      'Multiband 6 radio-controlled timekeeping',
+      'Digital display',
+      'Japan domestic model / JDM'
+    ],
+    condition: 'New / unused item sourced from Japan.',
+    shippingNote: 'Free international shipping from Japan with tracking.'
+  });
+
+  Logger.log('DRY RUN: customer friendly WooCommerce draft payload preview');
+  Logger.log(JSON.stringify(payload, null, 2));
+
+  return payload;
 }
 
 function normalizeWooModelText_(value) {
