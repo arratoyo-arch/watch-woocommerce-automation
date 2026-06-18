@@ -81,6 +81,28 @@ selected-rows-only
 
 Do not convert this project into full automatic bulk update logic.
 
+## Customer Friendly WooCommerce Rules
+
+When improving watch-tokyo.com product drafts, prioritize small, low-risk changes that make the product page easier for overseas customers to understand.
+
+Product draft descriptions should clearly state:
+
+* Model
+* Brand
+* Series
+* Key features
+* New / unused condition
+* Japan domestic model / JDM
+* Authentic product sourced from Japan
+* Free international shipping from Japan
+* Tracking / careful packing
+* Customs / import duties are the buyer's responsibility where applicable
+* Buyer should check model number, specifications, size, and compatibility before purchase
+* Buyer should contact the store before ordering if they have questions
+* Draft note requiring human confirmation before publish
+
+Do not publish or bulk-update existing public products only to improve wording unless the user explicitly approves a reviewed, small-batch production operation.
+
 ---
 
 ## Secrets Policy

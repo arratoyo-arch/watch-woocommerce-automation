@@ -49,6 +49,84 @@
 
 ---
 
+## customer friendly 改善方針
+
+watch-tokyo.com は大規模リニューアルではなく、WooCommerce draft 作成時点の説明文・短い説明・タグ・メタデータを整えることで、購入前の不安を低リスクに減らします。
+
+### 現状分析
+
+* 既存の draft 作成フローは `status: draft` を使っており、公開前に人間が確認できる安全な流れです。
+* Free shipping の記載はありますが、短い説明と本文で表現が統一されていない場合があります。
+* New / unused、Ships from Japan、JDM、customs / import duties、Before Purchase の注意がセクション化されていないと、海外購入者が重要情報を見落とす可能性があります。
+* 画像、価格、在庫、カテゴリ、最終説明文は公開前に必ず確認する前提を維持します。
+
+### すぐ改善すべき点
+
+* short description に New / unused、Japan domestic model / JDM、Free international shipping from Japan を明記します。
+* product description は `Model`、`Brand`、`Series`、`Key Features`、`Condition`、`Shipping`、`Customs / Import Duties`、`Before Purchase`、`Note` の順に統一します。
+* meta_data に shipping note、condition note、customs note、publish checklist を残し、公開前レビューで確認できるようにします。
+* tags に `Ships from Japan`、`Free Shipping`、`New Unused` など、購入者が理解しやすい補助タグを追加します。
+
+### 実装した方がよい改善
+
+* WDB 由来の全 draft 作成テンプレートを同じ customer friendly 構成に寄せます。
+* 画像未設定の商品は公開前チェックで止め、画像準備後に公開します。
+* スペック不足時は断定せず、`Please check the model number, specifications, size, and compatibility before purchase.` を必ず入れます。
+* Shipping / Customs / Returns / FAQ は固定ページまたはサイト導線で確認しやすくします。
+
+### 実装しない方がよい改善
+
+* 既存公開商品の大量本文更新。
+* 価格変更、在庫変更、注文処理、決済設定変更。
+* テーマの大幅変更やサイト全体リニューアル。
+* WooCommerce 側から他販売チャネルの出品・価格・広告を操作する処理。
+
+### 商品説明テンプレート
+
+```text
+Model: XXXXX
+
+Brand: XXXXX
+Series: XXXXX
+
+Key Features:
+* Japan domestic model / JDM
+* Authentic product sourced from Japan
+* Main features here
+
+Condition:
+New / unused item sourced from Japan.
+
+Shipping:
+Free international shipping from Japan.
+We carefully pack and ship the item with tracking.
+
+Customs / Import Duties:
+Import duties, taxes, and customs fees may be charged by your country and are the buyer's responsibility where applicable.
+
+Before Purchase:
+Please check the model number, specifications, size, and compatibility before purchase.
+If you have any questions, please contact us before ordering.
+
+Note:
+This is a draft product. Please confirm price, stock, images, categories, and final description before publishing.
+```
+
+### Shipping / Customs / Returns / FAQ 文面案
+
+* Shipping: `We ship from Japan with tracking. Free international shipping is included for eligible products unless otherwise stated on the product page.`
+* Customs: `Import duties, taxes, and customs fees may be charged by your country and are the buyer's responsibility where applicable.`
+* Returns / cancellation: `Please contact us as soon as possible if there is an issue with your order. Return eligibility depends on item condition, timing, and the reason for return.`
+* FAQ: `Before purchasing, please check the model number, specifications, size, and compatibility. If you are unsure, please contact us before ordering.`
+
+### 変更リスク
+
+* 説明文の改善は draft 作成時の表示改善が中心のため低リスクです。
+* WooCommerce API の公開商品一括更新ではないため、既存公開商品の価格・在庫・注文には影響しません。
+* ただし、公開前に価格、在庫、画像、カテゴリ、スペック、英語表現を人間が確認する必要があります。
+
+---
+
 ## watch-woocommerce-automation でやらないこと
 
 1. eBay `Active_listing` の本体管理
