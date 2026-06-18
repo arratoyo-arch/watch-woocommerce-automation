@@ -202,6 +202,7 @@ function checkWooCommerceConnection() {
 // Draft creation keeps using the shared WooCommerce API helpers above so the
 // existing semi-automatic update flow remains intact.
 var WOO_DRAFT_DW5750UE1JF_MODEL = 'DW-5750UE-1JF';
+var WOO_DRAFT_CUSTOMER_FRIENDLY_NOTE = 'This is a draft product. Please confirm price, stock, images, categories, and final description before publishing.';
 
 /**
  * Creates a WooCommerce product.
@@ -322,6 +323,22 @@ function createWooDraft_DW5750UE1JF() {
 }
 
 function buildWooDraftPayload_DW5750UE1JF_() {
+  var productInfo = {
+    model: WOO_DRAFT_DW5750UE1JF_MODEL,
+    brand: 'Casio',
+    series: 'G-SHOCK 5700 Series',
+    keyFeatures: [
+      'Japan domestic model / JDM',
+      'Authentic product sourced from Japan',
+      'Shock-resistant construction',
+      '200-meter water resistance',
+      'LED backlight, stopwatch, countdown timer, alarm, and calendar functions',
+      'Approximately 5-year battery life'
+    ],
+    condition: 'New / unused item sourced from Japan.',
+    note: WOO_DRAFT_CUSTOMER_FRIENDLY_NOTE
+  };
+
   return {
     name: 'Casio G-SHOCK DW-5750UE-1JF 5700 Series Digital Watch Japan Model',
     type: 'simple',
@@ -333,8 +350,8 @@ function buildWooDraftPayload_DW5750UE1JF_() {
     stock_quantity: 1,
     stock_status: 'instock',
     shipping_required: true,
-    short_description: 'A classic round-face G-SHOCK from the 5700 series, inspired by the original 1987 DW-5700C design. The DW-5750UE-1JF features a durable shock-resistant resin case, 200-meter water resistance, LED backlight, stopwatch, timer, alarm, and a practical 5-year battery life. A simple and reliable Japan model for everyday use.',
-    description: 'The Casio G-SHOCK DW-5750UE-1JF is a classic round digital model from the popular 5700 series. Inspired by the original DW-5700C released in 1987, this watch keeps the simple and iconic G-SHOCK look while offering practical everyday functions.\n\nIt features shock-resistant construction, 200-meter water resistance, a resin case and band, mineral glass, LED backlight, stopwatch, countdown timer, alarm, and calendar functions. With its lightweight 52g body and approximately 5-year battery life, it is a reliable daily watch for casual, outdoor, and active use.\n\nThis is a Japan model and a good choice for customers looking for a clean, classic G-SHOCK design outside the standard square 5600 series.\n\nHuman check required before publish. Shipping: Free shipping.',
+    short_description: buildWooCustomerFriendlyShortDescription_(productInfo),
+    description: buildWooCustomerFriendlyDescription_(productInfo),
     categories: [
       { name: 'Casio' },
       { name: 'G-SHOCK' },
@@ -349,6 +366,9 @@ function buildWooDraftPayload_DW5750UE1JF_() {
       { name: '5700 Series' },
       { name: 'Japan Model' },
       { name: 'JDM' },
+      { name: 'Ships from Japan' },
+      { name: 'Free Shipping' },
+      { name: 'New Unused' },
       { name: 'Digital Watch' },
       { name: 'Black Watch' },
       { name: 'Shock Resistant' },
@@ -358,9 +378,75 @@ function buildWooDraftPayload_DW5750UE1JF_() {
       { key: 'model', value: WOO_DRAFT_DW5750UE1JF_MODEL },
       { key: 'brand', value: 'Casio' },
       { key: 'series', value: 'G-SHOCK 5700 Series' },
-      { key: 'shipping_note', value: 'Free shipping' },
-      { key: 'human_check_required', value: 'yes' }
+      { key: 'shipping_note', value: 'Free international shipping from Japan with tracking' },
+      { key: 'condition_note', value: 'New / unused item sourced from Japan' },
+      { key: 'customs_note', value: 'Import duties, taxes, and customs fees are buyer responsibility where applicable' },
+      { key: 'human_check_required', value: 'yes' },
+      { key: 'publish_checklist', value: 'Confirm price, stock, images, categories, model number, specifications, shipping note, customs note, and final description before publishing.' }
     ]
+  };
+}
+
+function buildWooCustomerFriendlyShortDescription_(productInfo) {
+  return [
+    'New / unused ' + productInfo.brand + ' ' + productInfo.model + ' ' + productInfo.series + ' watch.',
+    'Japan domestic model / JDM and authentic product sourced from Japan.',
+    'Free international shipping from Japan with tracking.',
+    'Please check the model number, specifications, size, and compatibility before purchase.'
+  ].join(' ');
+}
+
+function buildWooCustomerFriendlyDescription_(productInfo) {
+  return [
+    'Model: ' + productInfo.model,
+    '',
+    'Brand: ' + productInfo.brand,
+    'Series: ' + productInfo.series,
+    '',
+    'Key Features:',
+    buildWooBulletList_(productInfo.keyFeatures),
+    '',
+    'Condition:',
+    productInfo.condition,
+    '',
+    'Shipping:',
+    'Free international shipping from Japan.',
+    'We carefully pack and ship the item with tracking.',
+    '',
+    'Customs / Import Duties:',
+    "Import duties, taxes, and customs fees may be charged by your country and are the buyer's responsibility where applicable.",
+    '',
+    'Before Purchase:',
+    'Please check the model number, specifications, size, and compatibility before purchase.',
+    'If you have any questions, please contact us before ordering.',
+    '',
+    'Note:',
+    productInfo.note
+  ].join('\n');
+}
+
+function buildWooBulletList_(items) {
+  return (items || []).map(function(item) {
+    return '* ' + item;
+  }).join('\n');
+}
+
+function dryRunWooCustomerFriendlyDraftTemplate_DW5750UE1JF() {
+  var payload = buildWooDraftPayload_DW5750UE1JF_();
+  Logger.log('DRY RUN: customer friendly WooCommerce draft template');
+  Logger.log('Name: ' + payload.name);
+  Logger.log('Short description:');
+  Logger.log(payload.short_description);
+  Logger.log('Description:');
+  Logger.log(payload.description);
+  Logger.log('Tags: ' + payload.tags.map(function(tag) { return tag.name; }).join(', '));
+  Logger.log('Meta data: ' + JSON.stringify(payload.meta_data, null, 2));
+  return {
+    name: payload.name,
+    short_description: payload.short_description,
+    description: payload.description,
+    tags: payload.tags,
+    meta_data: payload.meta_data
   };
 }
 
