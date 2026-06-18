@@ -125,6 +125,42 @@ This is a draft product. Please confirm price, stock, images, categories, and fi
 * WooCommerce API の公開商品一括更新ではないため、既存公開商品の価格・在庫・注文には影響しません。
 * ただし、公開前に価格、在庫、画像、カテゴリ、スペック、英語表現を人間が確認する必要があります。
 
+
+---
+
+## watch-tokyo.com customer-friendly site copy policy
+
+watch-tokyo.com should reduce overseas customer anxiety with small, low-risk content improvements that can be manually reviewed before publication. The detailed page copy and product-page trust block are maintained in [`docs/customer-friendly-pages.md`](docs/customer-friendly-pages.md).
+
+Recommended manual site placement:
+
+* Home: add a “Why Buy from Watch Tokyo?” section.
+* Footer: add About / Shipping / Customs / Returns / FAQ / Contact links.
+* Product page: clearly state Condition / Shipping / Customs / Before Purchase.
+* WDB draft: before publishing, a human must confirm price, stock, images, category, specifications, and final description.
+* WooCommerce supports the broader watch business, but this repository should prioritize low-risk customer-friendly improvements rather than large site rebuilds or bulk production updates.
+
+The shared product-page trust block should include:
+
+```text
+Condition:
+New / unused item sourced from Japan.
+
+Shipping:
+Free international shipping from Japan with tracking.
+We carefully pack and ship the item from Japan.
+
+Customs / Import Duties:
+Import duties, taxes, and customs fees may be charged by your country and are the buyer's responsibility where applicable.
+
+Before Purchase:
+Please check the model number, specifications, size, color, functions, and compatibility before purchase.
+If you have any questions, please contact us before ordering.
+
+Note:
+Please confirm the product images, model number, and specifications before purchase.
+```
+
 ---
 
 ## watch-woocommerce-automation でやらないこと
