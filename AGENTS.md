@@ -1,4 +1,3 @@
-
 # AGENTS.md
 
 ## Repository Scope
@@ -19,20 +18,25 @@ watch-tokyo.com
 
 Do not mix eBay automation into this repository.
 
-Do not add:
-
-* eBay API code
-* eBay Active Listing logic
-* eBay listing logic
-* eBay sales logic
-* eBay pricing judgment logic
-* eBay sheet automation
-* eBay order automation
-
-eBay automation must be handled in a separate repository.
-
 ---
 
+## Repository Boundary Rules
+
+* このリポジトリの責務外の処理を追加しない。
+* eBay用リポジトリに WooCommerce API / Woo draft 作成ロジックを追加しない。
+* WooCommerce用リポジトリに eBay API更新 / Active_listing本体処理 / Promoted Listing変更ロジックを追加しない。
+* 似た関数名を作る場合でも、責務が違う処理を混在させない。
+* 既存の正常稼働している関数を削除しない。
+* GASの既存メニュー、既存トリガー、既存シート名を変更する場合は README に理由を書く。
+* Secret / API key / refresh token / consumer secret はコードに直書きしない。
+* PropertiesService または既存の安全な設定方式を使う。
+* 変更後は最低限のドライラン関数または接続確認関数を用意する。
+* PR本文は日本語で書く。
+
+If a task mentions eBay seller operations, stop and say it belongs in `watch-ebay-automation`.
+Documentation that explains repository separation may reference `watch-ebay-automation`, but this repository must not receive eBay implementation code.
+
+---
 
 ## WooCommerce / WDB Only Boundary
 
@@ -49,16 +53,16 @@ Allowed:
 
 Forbidden:
 
-* eBay Active_listing
-* eBay Listing_plan
-* Price_Up_Candidates
-* Sell Similar
-* eBay Trading API
-* eBay Revise Price
-* Ebay_New_Listing_Candidates
-* Ebay_Restock_Candidates
-
-If a task mentions eBay seller operations, stop and say it belongs in `watch-ebay-automation`.
+* eBay Active_listing implementation
+* eBay Listing_plan implementation
+* Price_Up_Candidates implementation
+* Sell Similar implementation
+* eBay Trading API implementation
+* eBay Revise Price implementation
+* Ebay_New_Listing_Candidates implementation
+* Ebay_Restock_Candidates implementation
+* eBay API update logic
+* Promoted Listing change logic
 
 ---
 
@@ -124,11 +128,13 @@ Woo_Products
 WC_Keep_Active
 ```
 
-Do not use the old sheet name:
+Do not use the old sheet name for new implementation:
 
 ```text
 WC_Products
 ```
+
+If compatibility references to `WC_Products` are unavoidable, document the reason in README and do not make it the primary workflow sheet.
 
 ### Woo_Products
 
@@ -264,40 +270,20 @@ all-row update without review
 
 ---
 
-## Confirmed Operation Status
-
-The current confirmed system status is:
-
-```text
-WooCommerce API connection: OK
-WooCommerce product fetch: OK
-Published products fetched: 145
-Woo_Products export: OK
-SKU registration: OK
-SKU registered: 145
-SKU blank: 0
-WC_Keep_Active workflow: OK
-Price and stock preview: OK
-Production update: OK
-Re-fetch confirmation: OK
-Semi-automatic operation: OK
-```
-
----
-
 ## Development Guardrails
 
 When editing code or documentation:
 
 * Keep README and actual function names consistent
 * Keep README and actual sheet names consistent
-* Do not reintroduce old names
+* Do not reintroduce old names as primary workflow names
 * Do not add eBay logic
 * Do not add unsafe bulk-update logic
 * Do not expose secrets
 * Do not remove the preview-before-production rule
 * Do not remove the selected-row-only rule
 * Do not remove the human-review requirement
+* Do not remove working functions without explicit documentation and user approval
 
 ---
 
@@ -313,7 +299,7 @@ Before committing changes, confirm:
 □ WOO_SITE_URL is used
 □ WOO_CONSUMER_KEY is used
 □ WOO_CONSUMER_SECRET is used
-□ WC_Products is not used
+□ WC_Products is not used as a new primary workflow sheet
 □ WC_SITE_URL is not used
 □ WC_CONSUMER_KEY is not used
 □ WC_CONSUMER_SECRET is not used
@@ -331,11 +317,5 @@ Before committing changes, confirm:
 For documentation completion, use a clear commit message such as:
 
 ```text
-Add AGENTS instructions
-```
-
-For README replacement, use:
-
-```text
-Create completed README
+Document repository boundary rules
 ```
