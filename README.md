@@ -1,214 +1,220 @@
 # watch-woocommerce-automation
 
-> [!WARNING]
-> **日本語:** このリポジトリは WooCommerce / WDB（Woo Draft Bridge）専用です。eBay出品管理・価格改定・Sell Similar作業は禁止です。eBay作業は `watch-ebay-automation` で行ってください。
->
-> **English:** This repository is ONLY for WooCommerce / WDB (Woo Draft Bridge). eBay listing management, price revision, and Sell Similar work are forbidden. Handle eBay work in `watch-ebay-automation`.
+このリポジトリは **WooCommerce / watch-tokyo.com 商品 draft 作成・商品管理専用** の Google Apps Script リポジトリです。
 
-
-WooCommerce semi-automation repository for watch-tokyo.com.
-
-This repository is for WooCommerce only.
-Do not mix eBay automation, eBay API, eBay Active Listing logic, eBay listing logic, or eBay sales logic into this repository.
+`watch-ebay-automation` と `watch-woocommerce-automation` は、目的・コード・関数名・シート名・API設定・運用責務を完全に分離します。相互に運用上の情報を参照してよいですが、実装責務は混在させません。
 
 ---
 
-## Repository Purpose
+## 関連リポジトリ
 
-This project manages WooCommerce product maintenance for watch-tokyo.com using Google Apps Script and Google Sheets.
+| リポジトリ | 役割 |
+| --- | --- |
+| `watch-ebay-automation` | eBay収益化専用 |
+| `watch-woocommerce-automation` | WooCommerce draft / 商品管理専用 |
 
-Main goals:
-
-* Fetch WooCommerce product data into Google Sheets
-* Review products manually before update
-* Update SKU, price, and stock safely
-* Use a semi-automatic workflow
-* Keep production updates under human control
-* Keep WooCommerce automation separated from eBay automation
-* Keep secrets outside README and source code
+* 2つのリポジトリは相互に参照してよいです。
+* ただし、コード責務・API更新処理・シート本体管理・関数責務は混在させません。
+* WooCommerce は eBay 収益化の補助情報になり得ますが、`watch-ebay-automation` 側に WooCommerce API POST/PUT や Woo draft 作成ロジックを入れません。
+* eBay の販売管理・価格変更・Active listing 本体処理は `watch-ebay-automation` 側で扱い、このリポジトリには入れません。
 
 ---
 
-## WooCommerce Only Policy
+## watch-woocommerce-automation の目的
 
-This repository is dedicated to WooCommerce operations.
+このリポジトリの目的は、**WooCommerce / watch-tokyo.com の商品 draft 作成、未出品モデル管理、商品説明文、タイトル、カテゴリ、タグ、画像準備、商品管理** を担当することです。
 
-Do not add:
+主な対象は以下です。
 
-* eBay API code
-* eBay Active Listing logic
-* eBay sales logic
-* eBay listing strategy
-* eBay pricing judgment logic
-* eBay sheet automation
-
-eBay automation must be managed in a separate repository.
+* `Woo_Products`
+* `WC_Keep_Active`
+* `WC_Todo_Check`
+* `WDB_Next_Sales_Candidates`
+* `WC_Products`（旧名・互換参照が必要な場合のみ。新規実装では使用しない）
+* WooCommerce API
+* Woo Draft Bridge / WDB
 
 ---
 
-## Secrets Policy
+## watch-woocommerce-automation でやること
 
-Never write secrets directly in README, source code, comments, or logs.
+1. WDB モデル番号による WooCommerce draft 候補作成
+2. 未出品モデルのみ新規 draft 化
+3. タイトル・説明文・価格・タグ・カテゴリ作成
+4. 画像 550x550 準備
+5. Free shipping 前提の商品説明作成
+6. WooCommerce 商品データの取得・確認
+7. `WC_Keep_Active` を使った SKU・価格・在庫の半自動更新
+8. `Woo_Products` による更新結果確認
 
-Do not commit:
+---
 
-* WooCommerce Consumer Key actual value
-* WooCommerce Consumer Secret actual value
-* Access token
-* Refresh token
-* Password
-* Private API keys
-* Customer private information
+## watch-woocommerce-automation でやらないこと
 
-Use Google Apps Script Properties only.
+1. eBay `Active_listing` の本体管理
+2. eBay価格変更
+3. eBay Promoted Listing変更
+4. eBayログイン自動化
+5. eBay API出品更新
+6. eBay Trading API / Sell Similar / 売上分析の本体処理
+7. eBay seller operations の関数・シート・API更新処理の追加
 
-Required Script Properties:
+これらは `watch-ebay-automation` の責務です。
+
+---
+
+## WooCommerce側の前提
+
+* watch-tokyo.com は Free shipping 前提です。
+* `publish` / `draft` / `pending` に既存モデルがある場合、そのモデルは新規 draft 対象外です。
+* 更新は半自動・人間レビュー・preview-before-production・selected-rows-only を維持します。
+* 初回の実運用は 5〜10 行程度の小さい単位で行います。
+
+---
+
+## watch-ebay-automation の責務（参照用）
+
+`watch-ebay-automation` は **eBay販売の収益化、売上増加、利益率改善、価格上げ、補充判断、在庫リスク確認** を最優先する専用リポジトリです。
+
+### 主な対象
+
+* `Active_listing`
+* `My_sale`
+* `Listing_plan`
+* `EBAY_Revenue_Priority`
+* eBay API
+* Promoted Listing
+* 価格上げ候補
+* 補充候補
+* 終了候補
+
+### やること
+
+1. Active listing 分析
+2. Sold実績分析
+3. Views / Watchers / R / Days による収益化判定
+4. 価格上げ候補抽出
+5. Restock候補抽出
+6. 在庫確認候補抽出
+7. eBay出品改善候補作成
+
+### やらないこと
+
+1. WooCommerce draft作成
+2. watch-tokyo.com 商品登録
+3. WooCommerce API POST/PUT
+4. Woo商品説明文生成を主目的にした処理
+
+---
+
+## 収益化優先順位（watch-ebay-automation）
+
+`watch-ebay-automation` では、以下の順番で eBay 収益化を優先します。
+
+1. 価格上げ候補
+2. 売れ筋補充候補
+3. 在庫切れ・販売終了チェック
+4. 出品改善
+5. 新規出品候補
+6. WooCommerce連携は対象外
+
+短縮表現では、以下の優先順位です。
 
 ```text
-WOO_SITE_URL
-WOO_CONSUMER_KEY
-WOO_CONSUMER_SECRET
+価格上げ > 売れ筋補充 > 在庫確認 > 出品改善 > 新規出品 > WooCommerce連携対象外
 ```
 
 ---
 
-## Main Sheets
+## ファイル責務
 
-### Woo_Products
+### watch-woocommerce-automation
 
-`Woo_Products` is the confirmation sheet created from WooCommerce API data.
+| ファイル | 責務 |
+| --- | --- |
+| `woocommerce.gs` | WooCommerce API 接続、商品取得、SKU・価格・在庫更新、preview-before-production、`Woo_Products` / `WC_Keep_Active` ワークフロー |
+| `woo_draft_bridge.gs` | WDB モデル番号から WooCommerce draft 候補を作成し、未出品モデルだけを draft 化する橋渡し処理（存在する場合） |
+| `utils.gs` | 共通ユーティリティ、入力検証、シート補助、ログ補助など |
+| `README.md` | 運用目的、リポジトリ分離、シート責務、安全運用ルール |
+| `AGENTS.md` | Codex が恒久的に守る開発・運用ガードレール |
 
-Purpose:
+### watch-ebay-automation（参照用）
 
-* Check current WooCommerce product status
-* Confirm SKU, price, stock, product ID, and product name
-* Verify results after production update
-
-This sheet is not the main manual update sheet.
-
----
-
-### WC_Keep_Active
-
-`WC_Keep_Active` is the main working sheet for WooCommerce maintenance.
-
-Purpose:
-
-* Prepare SKU updates
-* Prepare price updates
-* Prepare stock updates
-* Review products before production update
-* Run semi-automatic updates only for selected rows
-
-Important columns:
-
-```text
-ID
-SKU
-Name
-Type
-Status
-Price
-Regular Price
-Sale Price
-Stock Status
-Stock Quantity
-Categories
-Permalink
-Date Modified
-Error
-Duplicate SKU
-Woo Action
-Last Sync
-WC Check
-WC Check Note
-WC Update Action
-New Price
-New Stock Status
-New Stock Quantity
-Update Note
-WC Sync Status
-WC Synced At
-WC Sync Error
-```
+| ファイル | 責務 |
+| --- | --- |
+| `active_listing.gs` | Active listing 取得・分析・重要アクション候補抽出 |
+| `sales.gs` | Sold実績 / `My_sale` 分析、販売実績にもとづく判断材料作成 |
+| `listing_plan.gs` | `Listing_plan` の候補作成、出品改善・補充・価格戦略の計画化 |
+| `ebay_api.gs` | eBay API 接続、認証、eBay 側データ取得・更新の共通処理 |
 
 ---
 
-## Main Functions
+## シート責務
 
-### exportWooProductsToSheet()
+### watch-woocommerce-automation
 
-Fetches WooCommerce products and writes them to `Woo_Products`.
+| シート | 責務 |
+| --- | --- |
+| `Woo_Products` | WooCommerce API から取得した商品確認シート。SKU、価格、在庫、商品ID、商品名、更新結果の確認に使う |
+| `WC_Keep_Active` | WooCommerce 商品管理のメイン作業シート。SKU・価格・在庫更新準備、手動レビュー、選択行のみの半自動更新に使う |
+| `WC_Todo_Check` | WooCommerce 商品化や修正の確認待ちタスク管理に使う |
+| `WDB_Next_Sales_Candidates` | WDB 由来の次回販売・draft 化候補を管理する |
+| `WC_Products` | 旧シート名。新規実装では `Woo_Products` を使い、互換参照が必要な場合だけ README に理由を明記する |
 
-Use this function:
+### watch-ebay-automation（参照用）
 
-* Before review
-* After production update
-* To confirm current WooCommerce data
-
-Confirmed operation:
-
-```text
-WooCommerce API connection: OK
-Product count: 145
-Woo_Products export: OK
-```
-
----
-
-### buildWooKeepActiveCandidates()
-
-Builds or refreshes update candidates in `WC_Keep_Active`.
-
-Use this function when preparing WooCommerce maintenance candidates.
+| シート | 責務 |
+| --- | --- |
+| `Active_listing` | eBay 出品中商品の本体管理・分析元データ |
+| `My_sale` | eBay Sold実績、販売数、利益、需要確認の元データ |
+| `Listing_plan` | 出品改善、補充、価格変更、新規候補の計画シート |
+| `EBAY_Revenue_Priority` | eBay収益化の優先順位、価格上げ、売れ筋補充、在庫確認候補を整理するシート |
 
 ---
 
-### updateWooSkuFromKeepActive()
+## 主要関数
 
-Updates product SKU from `WC_Keep_Active`.
+### `exportWooProductsToSheet()`
 
-Use only for SKU update.
+WooCommerce 商品を取得して `Woo_Products` に書き出します。
 
-Required action:
+使用タイミング:
+
+* レビュー前
+* 本番更新後
+* WooCommerce の現在値確認時
+
+### `buildWooKeepActiveCandidates()`
+
+`WC_Keep_Active` に WooCommerce 管理候補を作成または更新します。
+
+### `updateWooSkuFromKeepActive()`
+
+`WC_Keep_Active` から SKU のみを更新します。
+
+必須アクション:
 
 ```text
 WC Update Action = UPDATE_SKU
 ```
 
-Confirmed operation:
+### `previewWooProductsUpdateFromKeepActive()`
+
+価格・在庫の本番更新前に必ず実行する preview 関数です。
+
+確認内容:
 
 ```text
-SKU registered: 145
-SKU blank: 0
-SKU update flow: completed
-```
-
----
-
-### previewWooProductsUpdateFromKeepActive()
-
-Previews price and stock updates before production update.
-
-Always run this before production update.
-
-The preview should confirm:
-
-```text
-Target rows are correct
+Target rows are expected
 Warnings: 0
 Errors: 0
 ```
 
-Do not run production update if preview has warnings or unexpected rows.
+### `updateWooProductsFromKeepActive()`
 
----
+`WC_Keep_Active` から WooCommerce の価格・在庫を本番更新します。
 
-### updateWooProductsFromKeepActive()
-
-Runs production update for price and stock from `WC_Keep_Active`.
-
-Allowed actions:
+許可アクション:
 
 ```text
 UPDATE
@@ -217,174 +223,74 @@ UPDATE_STOCK
 UPDATE_PRICE_STOCK
 ```
 
-This function updates WooCommerce product data by API.
-
-After successful update, `WC Update Action` should be cleared so the same row is not updated again by mistake.
+本番更新後は `WC Update Action` をクリアし、`exportWooProductsToSheet()` で結果を確認します。
 
 ---
 
-## SKU Update Flow
+## 安全運用ルール
 
-Use this flow only when SKU maintenance is needed.
-
-```text
-1. Open WC_Keep_Active
-2. Confirm product ID and product name
-3. Enter or confirm SKU
-4. Set WC Update Action = UPDATE_SKU
-5. Run updateWooSkuFromKeepActive()
-6. Run exportWooProductsToSheet()
-7. Confirm SKU in Woo_Products
-```
-
-Current result:
-
-```text
-SKU registered: 145
-SKU blank: 0
-SKU phase: completed
-```
+* 人間が `WC Update Action` を入力した行だけ更新します。
+* `WC Update Action` が空の行は必ずスキップします。
+* 本番更新前に必ず preview を実行します。
+* preview に warnings / errors がある場合は本番更新しません。
+* target rows が想定外の場合は本番更新しません。
+* 本番更新後は `WC Update Action` をクリアします。
+* 更新結果は `exportWooProductsToSheet()` で再取得し、`Woo_Products` で確認します。
+* 一括全自動更新には変更しません。
 
 ---
 
-## Price and Stock Update Flow
+## 禁止事項
 
-Use this flow for WooCommerce price and stock updates.
-
-```text
-1. Open WC_Keep_Active
-2. Enter New Price
-3. Enter New Stock Status
-4. Enter New Stock Quantity
-5. Set WC Update Action
-6. Run previewWooProductsUpdateFromKeepActive()
-7. Confirm warnings are 0
-8. Run updateWooProductsFromKeepActive()
-9. Run exportWooProductsToSheet()
-10. Confirm result in Woo_Products
-```
+* eBayリポジトリに WooCommerce POST/PUT 処理を入れない
+* WooCommerceリポジトリに eBay価格変更処理を入れない
+* WooCommerceリポジトリに eBay Active listing 本体処理を入れない
+* WooCommerceリポジトリに eBay Promoted Listing 変更処理を入れない
+* 一時的な修正で別リポジトリの処理をコピーしない
+* APIキー、consumer secret、access token、refresh token、password を直書きしない
+* 動いている既存関数を説明なく削除しない
+* preview-before-production ルールを削除しない
+* selected-rows-only ルールを削除しない
+* human-reviewed の前提を削除しない
 
 ---
 
-## Price and Stock Input Rules
+## Secrets Policy
 
-### Update price and stock together
+Secret / API key / refresh token / consumer secret は、README・ソースコード・コメント・ログ・テストデータに書きません。
+
+WooCommerce の認証情報は Google Apps Script Properties に保存します。
+
+使用する Script Properties 名:
 
 ```text
-WC Update Action = UPDATE
-New Price = target price
-New Stock Status = instock or outofstock
-New Stock Quantity = 1 or 0
+WOO_SITE_URL
+WOO_CONSUMER_KEY
+WOO_CONSUMER_SECRET
 ```
 
-### Update price only
+以下の旧名は新規実装で使いません。
 
 ```text
-WC Update Action = UPDATE_PRICE
-New Price = target price
-```
-
-### Update stock only
-
-```text
-WC Update Action = UPDATE_STOCK
-New Stock Status = instock or outofstock
-New Stock Quantity = 1 or 0
-```
-
-### Update price and stock explicitly
-
-```text
-WC Update Action = UPDATE_PRICE_STOCK
-New Price = target price
-New Stock Status = instock or outofstock
-New Stock Quantity = 1 or 0
+WC_SITE_URL
+WC_CONSUMER_KEY
+WC_CONSUMER_SECRET
 ```
 
 ---
 
-## Stock Status Rules
-
-For available stock:
+## 初回本番運用ポリシー
 
 ```text
-New Stock Status = instock
-New Stock Quantity = 1
-```
-
-For out of stock:
-
-```text
-New Stock Status = outofstock
-New Stock Quantity = 0
+Recommended batch size: 5 to 10 rows
+Avoid: 100-row bulk update
+Operation style: semi-automatic
+Human confirmation: required
 ```
 
 ---
 
-## Action Rules
-
-| WC Update Action   | Purpose                |
-| ------------------ | ---------------------- |
-| UPDATE_SKU         | SKU update only        |
-| UPDATE             | Price and stock update |
-| UPDATE_PRICE       | Price update only      |
-| UPDATE_STOCK       | Stock update only      |
-| UPDATE_PRICE_STOCK | Price and stock update |
-
-Rows without `WC Update Action` must be skipped.
-
----
-
-## Safe Operation Rules
-
-Production update must remain semi-automatic.
-
-Required safety rules:
-
-* Always preview before production update
-* Confirm warning count is 0
-* Confirm target row count is expected
-* Update only rows where a human entered `WC Update Action`
-* Do not update all rows automatically
-* Clear `WC Update Action` after successful update
-* Start real operation with 5 to 10 rows
-* Do not run 100-row bulk update at the beginning
-* Use `Woo_Products` to confirm result after update
-
----
-
-## Standard Operation Checklist
-
-Before production update:
-
-```text
-□ Editing WC_Keep_Active, not Woo_Products
-□ Product ID is correct
-□ SKU is correct
-□ New Price is correct
-□ New Stock Status is correct
-□ New Stock Quantity is correct
-□ WC Update Action is entered
-□ Preview has been run
-□ Preview warning count is 0
-□ Preview target count is expected
-```
-
-After production update:
-
-```text
-□ Production update completed
-□ Error count is 0
-□ WC Update Action was cleared
-□ exportWooProductsToSheet was run
-□ Woo_Products confirms the result
-```
-
----
-
-## Confirmed Operation Status
-
-Current confirmed status:
+## 確認済み運用状態
 
 ```text
 WooCommerce API connection: OK
@@ -400,49 +306,3 @@ Production update: OK
 Re-fetch confirmation: OK
 Semi-automatic operation: OK
 ```
-
----
-
-## Initial Production Operation Policy
-
-At the beginning of real operation:
-
-```text
-Recommended batch size: 5 to 10 rows
-Avoid: 100-row bulk update
-Operation style: semi-automatic
-Human confirmation: required
-```
-
----
-
-## Do Not Add Dangerous Automation
-
-Do not add functions that:
-
-* Automatically update all WooCommerce products without review
-* Automatically decide price without human confirmation
-* Automatically change stock for all products
-* Mix eBay data into WooCommerce update decisions
-* Expose secrets in logs
-* Skip preview before production update
-
----
-
-## Repository Separation
-
-WooCommerce automation and eBay automation must remain separate.
-
-WooCommerce repository:
-
-```text
-watch-woocommerce-automation
-```
-
-eBay repository:
-
-```text
-watch-ebay-automation
-```
-
-Do not merge these workflows.
