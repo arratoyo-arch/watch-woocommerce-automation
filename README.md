@@ -460,3 +460,15 @@ WOO_CONSUMER_SECRET
 * Draft 作成関数は `status: draft` の商品作成までに限定し、自動 Publish はしません。
 * `findWooProductBySkuOrModel_()` で既存 SKU / 型番を確認してから draft payload を作成します。
 * 既存の WDB draft 作成フローと同じ形式で、今後追加する `dryRunCreateWooDraft_...()` / `createWooDraft_...()` から共通ヘルパーを利用します。
+
+---
+
+## Watch Tokyo store structure review docs
+
+The customer-friendly store review is split into focused documentation so the WooCommerce workflow can improve without unsafe bulk updates.
+
+* [`docs/watch-tokyo-store-audit.md`](docs/watch-tokyo-store-audit.md): current issues, priority plan, category proposal, product page structure, trust navigation, and WDB alignment notes.
+* [`docs/watch-tokyo-homepage-proposal.md`](docs/watch-tokyo-homepage-proposal.md): manual homepage section proposal for hero, trust points, featured JDM watches, shop-by-brand, shop-by-category, shipping, customs, FAQ, and contact.
+* [`docs/customer-friendly-copy-templates.md`](docs/customer-friendly-copy-templates.md): reusable English copy for homepage, shipping, authenticity, customs, about text, product pages, and FAQ.
+
+Operational guardrails remain unchanged: WDB-created products stay as WooCommerce drafts, a human must review before publishing, top-page or fixed-page update automation is not implemented in this phase, and initial real operation should remain a small 5 to 10 row review.

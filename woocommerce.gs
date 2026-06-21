@@ -202,7 +202,7 @@ function checkWooCommerceConnection() {
 // Draft creation keeps using the shared WooCommerce API helpers above so the
 // existing semi-automatic update flow remains intact.
 var WOO_DRAFT_DW5750UE1JF_MODEL = 'DW-5750UE-1JF';
-var WOO_DRAFT_CUSTOMER_FRIENDLY_NOTE = 'This is a draft product. Please confirm price, stock, images, categories, and final description before publishing.';
+var WOO_DRAFT_CUSTOMER_FRIENDLY_NOTE = 'Draft review required before publish: confirm price, stock, images, product title, category, tags, model number, specifications, condition, shipping note, customs note, and final customer-facing description.';
 
 /**
  * Creates a WooCommerce product.
@@ -381,10 +381,10 @@ function buildWooCustomerFriendlyShortDescription_(product) {
   var productInfo = normalizeWooCustomerFriendlyProduct_(product);
 
   return [
-    'New / unused ' + productInfo.brand + ' ' + productInfo.model + ' ' + productInfo.series + '.',
-    'Japan domestic model / JDM.',
-    'Free international shipping from Japan with tracking.',
-    'Please check model number and specifications before purchase.'
+    'New / unused ' + productInfo.brand + ' ' + productInfo.model + ' from the ' + productInfo.series + ' series.',
+    'Japan domestic model / JDM watch sourced from Japan.',
+    'Free international shipping from Japan with tracking is included.',
+    'Please check the model number, specifications, size, color, functions, and compatibility before purchase.'
   ].join(' ');
 }
 
@@ -406,7 +406,7 @@ function buildWooCustomerFriendlyDescription_(product) {
     '',
     'Shipping:',
     productInfo.shippingNote,
-    'We carefully pack and ship the item with tracking.',
+    'We carefully pack the item for overseas delivery.',
     '',
     'Customs / Import Duties:',
     productInfo.customsNote,
@@ -428,10 +428,11 @@ function buildWooCustomerFriendlyTags_(product) {
     productInfo.brand,
     productInfo.series,
     productInfo.model,
-    'Japan Model',
-    'JDM',
+    'Japan Domestic Model',
+    'JDM Watch',
+    'Authentic Japanese Watch',
     'Ships from Japan',
-    'Free Shipping',
+    'Free International Shipping',
     'New Unused'
   ].concat(productInfo.tags).forEach(function(tagName) {
     var cleaned = trimString_(tagName);
@@ -462,8 +463,9 @@ function buildWooCustomerFriendlyMetaData_(product) {
     { key: 'shipping_note', value: productInfo.shippingNote },
     { key: 'condition_note', value: productInfo.condition },
     { key: 'customs_note', value: productInfo.customsNote },
+    { key: 'before_purchase_note', value: productInfo.beforePurchaseNote },
     { key: 'human_check_required', value: 'yes' },
-    { key: 'publish_checklist', value: 'Confirm price, stock, images, categories, model number, specifications, shipping note, customs note, and final description before publishing.' }
+    { key: 'publish_checklist', value: 'Confirm price, stock, images, product title, categories, tags, model number, specifications, size, color, functions, compatibility, condition, shipping note, customs note, and final customer-facing description before publishing.' }
   ];
 }
 
@@ -500,9 +502,9 @@ function normalizeWooCustomerFriendlyProduct_(product) {
     price: source.price !== undefined && source.price !== null && source.price !== '' ? source.price : '0',
     features: features,
     condition: trimString_(source.condition) || 'New / unused item sourced from Japan.',
-    shippingNote: trimString_(source.shippingNote) || 'Free international shipping from Japan.',
-    customsNote: trimString_(source.customsNote) || "Import duties, taxes, and customs fees may be charged by your country and are the buyer's responsibility where applicable.",
-    beforePurchaseNote: trimString_(source.beforePurchaseNote) || 'Please check the model number, specifications, size, and compatibility before purchase.',
+    shippingNote: trimString_(source.shippingNote) || 'Free international shipping from Japan with tracking is included unless otherwise stated on this product page.',
+    customsNote: trimString_(source.customsNote) || "Import duties, taxes, and customs fees may be charged by your country and are the buyer's responsibility where applicable. Please check your local rules before ordering.",
+    beforePurchaseNote: trimString_(source.beforePurchaseNote) || 'Please check the model number, specifications, size, color, functions, and compatibility before purchase.',
     categoryNames: normalizeWooStringArray_(source.categoryNames),
     tags: normalizeWooStringArray_(source.tags),
     note: trimString_(source.note) || WOO_DRAFT_CUSTOMER_FRIENDLY_NOTE
