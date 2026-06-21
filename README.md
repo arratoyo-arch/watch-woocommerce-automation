@@ -472,3 +472,11 @@ The customer-friendly store review is split into focused documentation so the Wo
 * [`docs/customer-friendly-copy-templates.md`](docs/customer-friendly-copy-templates.md): reusable English copy for homepage, shipping, authenticity, customs, about text, product pages, and FAQ.
 
 Operational guardrails remain unchanged: WDB-created products stay as WooCommerce drafts, a human must review before publishing, top-page or fixed-page update automation is not implemented in this phase, and initial real operation should remain a small 5 to 10 row review.
+
+---
+
+## YouTube video embed workflow
+
+WooCommerce products can be safely matched with the watch-tokyo.com YouTube channel by running a Dry Run first. The workflow is documented in [`docs/youtube-video-embed-workflow.md`](docs/youtube-video-embed-workflow.md).
+
+Use `dryRunMatchYouTubeVideosToWooProducts()` for YouTube Data API matching, or `dryRunMatchManualYouTubeVideosToWooProducts()` when using the manual `YouTube_Videos_Manual` sheet. Production embedding is limited to reviewed `READY_TO_EMBED` rows through `embedMatchedYouTubeVideosToWooProducts()`, appends the video section to the existing description, avoids duplicate video IDs, does not publish products, and processes at most 10 products per run.
