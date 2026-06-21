@@ -124,7 +124,7 @@ Secrets must be stored only in Google Apps Script Properties.
 Allowed Script Properties names:
 
 ```text
-WOO_SITE_URL
+WOO_BASE_URL
 WOO_CONSUMER_KEY
 WOO_CONSUMER_SECRET
 ```
@@ -318,7 +318,7 @@ Before committing changes, confirm:
 □ AGENTS.md exists
 □ Woo_Products is used
 □ WC_Keep_Active is used
-□ WOO_SITE_URL is used
+□ WOO_BASE_URL is used
 □ WOO_CONSUMER_KEY is used
 □ WOO_CONSUMER_SECRET is used
 □ WC_Products is not used as a new primary workflow sheet
