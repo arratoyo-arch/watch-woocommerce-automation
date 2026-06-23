@@ -480,3 +480,24 @@ Operational guardrails remain unchanged: WDB-created products stay as WooCommerc
 WooCommerce products can be safely matched with the watch-tokyo.com YouTube channel by running a Dry Run first. The workflow is documented in [`docs/youtube-video-embed-workflow.md`](docs/youtube-video-embed-workflow.md).
 
 Use `dryRunMatchYouTubeVideosToWooProducts()` for YouTube Data API matching, or `dryRunMatchManualYouTubeVideosToWooProducts()` when using the manual `YouTube_Videos_Manual` sheet. Production embedding is limited to reviewed `READY_TO_EMBED` rows through `embedMatchedYouTubeVideosToWooProducts()`, appends the video section to the existing description, avoids duplicate video IDs, does not publish products, and processes at most 10 products per run.
+
+## WooCommerce Access Ranking Top5
+
+`buildWooAccessRankingTop5()` builds a WooCommerce-only lightweight dashboard for the five products that should be checked each morning. It writes to `WC_Access_Ranking_Top5` and does not publish, bulk-update, or change product data.
+
+Added functions:
+
+- `buildWooAccessRankingTop5()`
+- `runWooAccessRankingDaily()`
+- `runWooAccessRankingDailyWithSlack()`
+- `testBuildWooAccessRankingTop5()`
+
+Manual test order:
+
+1. `testBuildWooAccessRankingTop5()`
+2. `buildWooAccessRankingTop5()`
+3. `runWooAccessRankingDaily()`
+4. `runWooAccessRankingDailyWithSlack()`
+
+When `GA4_PROPERTY_ID` is not set in Script Properties, the ranking continues with WooCommerce product and order data only. If a compatible Slack sender already exists, `runWooAccessRankingDailyWithSlack()` reuses it; otherwise Slack notification is safely skipped.
+
