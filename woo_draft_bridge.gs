@@ -86,11 +86,15 @@ function classifyWooDraftBridgeSource_(row, index) {
     sourceRowNumber: sourceRowNumber === '' ? index + 1 : sourceRowNumber,
     source: row
   };
-  var conditionEvidence = normalizeWooDraftBridgeText_(
-    title + ' ' + getWooDraftBridgeValue_(row, ['condition', 'itemCondition', 'category'])
+  var condition = normalizeWooDraftBridgeText_(
+    getWooDraftBridgeValue_(row, ['condition', 'itemCondition'])
+  ).trim().replace(/\s+/g, ' ');
+  var itemEvidence = normalizeWooDraftBridgeText_(
+    title + ' ' + getWooDraftBridgeValue_(row, ['category'])
   );
-  var excluded = /\b(USED|PRE[ -]?OWNED|SECONDHAND|PARTS?|REPAIR|BAND|STRAP|BRACELET|ACCESSOR(?:Y|IES))\b|中古|部品|ベルト|バンド|アクセサリ/.test(conditionEvidence);
-  var explicitlyNew = /\b(NEW|UNUSED|BRAND[ -]?NEW)\b|新品|未使用/.test(conditionEvidence);
+  var excluded = /\b(USED|PRE[ -]?OWNED|SECONDHAND|PARTS?|REPAIR|BAND|STRAP|BRACELET|ACCESSOR(?:Y|IES))\b|中古|部品|ベルト|バンド|アクセサリ/.test(condition + ' ' + itemEvidence);
+  var allowedNewConditions = ['NEW', 'BRAND NEW', 'UNUSED', 'NEW WITH TAGS', 'NEW WITHOUT TAGS', '新品', '未使用'];
+  var explicitlyNew = allowedNewConditions.indexOf(condition) !== -1;
 
   if (brands.length !== 1 || excluded || !explicitlyNew) {
     classified.classification = 'excluded';
@@ -119,18 +123,45 @@ function classifyWooDraftBridgeSource_(row, index) {
   return classified;
 }
 
+function getWooDraftBridgeProductModels_(product) {
+  var models = [];
+  ['model', 'modelNumber', 'model_number'].forEach(function(field) {
+    if (product && product[field] !== undefined && product[field] !== null && product[field] !== '') {
+      models = models.concat(parseWooDraftBridgeExplicitModels_(product[field]));
+    }
+  });
+  return uniqueWooDraftBridgeModels_(models);
+}
+
 function findWooDraftBridgeProductMatches_(products, model) {
   var modelKey = normalizeWooDraftBridgeModelKey_(model);
-  var exactSku = products.filter(function(product) {
-    return normalizeWooDraftBridgeModelKey_(product && product.sku) === modelKey;
+  var matches = [];
+  products.forEach(function(product) {
+    var skuKey = normalizeWooDraftBridgeModelKey_(product && product.sku);
+    var productModels = getWooDraftBridgeProductModels_(product);
+    var productModelKeys = productModels.map(normalizeWooDraftBridgeModelKey_);
+    var nameModels = extractWooDraftBridgeModels_(product && product.name);
+    var nameModelKeys = nameModels.map(normalizeWooDraftBridgeModelKey_);
+    var skuMatch = !!skuKey && skuKey === modelKey;
+    var modelMatch = productModelKeys.indexOf(modelKey) !== -1;
+    var nameMatch = wooDraftBridgeNameHasExactModel_(product && product.name, model);
+    if (!skuMatch && !modelMatch && !nameMatch) return;
+
+    var conflicts = [];
+    if (productModelKeys.length > 1) conflicts.push('multiple_explicit_model_values');
+    if (nameModelKeys.length > 1) conflicts.push('multiple_name_model_values');
+    if (skuKey && !skuMatch && (modelMatch || nameMatch)) conflicts.push('sku_conflicts_with_matched_identity');
+    if (productModelKeys.length && !modelMatch && (skuMatch || nameMatch)) conflicts.push('explicit_model_conflicts_with_matched_identity');
+    if (nameModelKeys.length && nameModelKeys.indexOf(modelKey) === -1 && (skuMatch || modelMatch)) conflicts.push('name_model_conflicts_with_matched_identity');
+    matches.push({
+      product: product,
+      matchMethod: skuMatch ? 'sku' : (modelMatch ? 'model' : 'name'),
+      productModels: productModels,
+      nameModels: nameModels,
+      conflicts: conflicts
+    });
   });
-  if (exactSku.length) return { method: 'sku', products: exactSku };
-  return {
-    method: 'name',
-    products: products.filter(function(product) {
-      return wooDraftBridgeNameHasExactModel_(product && product.name, model);
-    })
-  };
+  return matches;
 }
 
 function hasWooDraftBridgeValue_(value) {
@@ -202,17 +233,34 @@ function buildWooDraftBridgePreview(sourceRows, wooProducts, options) {
     firstByModel[source.modelKey] = source;
     result.uniqueModels.push(source);
 
-    var match = findWooDraftBridgeProductMatches_(relevantProducts, source.model);
-    if (match.products.length) {
-      var existing = { source: source, matchMethod: match.method, products: match.products };
+    var matches = findWooDraftBridgeProductMatches_(relevantProducts, source.model);
+    var conflictingMatches = matches.filter(function(match) { return match.conflicts.length > 0; });
+    if (matches.length > 1 || conflictingMatches.length > 0) {
+      var unresolvedMatch = {
+        sourceIndex: source.sourceIndex,
+        sourceRowNumber: source.sourceRowNumber,
+        source: source.source,
+        brand: source.brand,
+        model: source.model,
+        modelKey: source.modelKey,
+        reason: matches.length > 1 ? 'multiple_woo_product_matches' : 'woo_identity_conflict',
+        matchMethod: matches.map(function(match) { return match.matchMethod; }),
+        matchedProducts: matches
+      };
+      result.unresolvedRows.push(unresolvedMatch);
+      result.warnings.push('Woo identity could not be resolved safely for source row ' + source.sourceRowNumber + '.');
+      result.accounting.push({ sourceIndex: index, classification: 'unresolvedRows' });
+      return;
+    }
+    if (matches.length === 1) {
+      var resolvedMatch = matches[0];
+      var existing = { source: source, matchMethod: resolvedMatch.matchMethod, products: [resolvedMatch.product] };
       result.existingWooProducts.push(existing);
-      match.products.forEach(function(product) {
-        result.existingWooByStatus[String(product.status).toLowerCase()].push({
-          sourceRowNumber: source.sourceRowNumber,
-          model: source.model,
-          matchMethod: match.method,
-          product: product
-        });
+      result.existingWooByStatus[String(resolvedMatch.product.status).toLowerCase()].push({
+        sourceRowNumber: source.sourceRowNumber,
+        model: source.model,
+        matchMethod: resolvedMatch.matchMethod,
+        product: resolvedMatch.product
       });
       result.accounting.push({ sourceIndex: index, classification: 'existingWooProducts' });
       return;
@@ -240,6 +288,12 @@ function buildWooDraftBridgePreview(sourceRows, wooProducts, options) {
     ['description', 'categories', 'tags', 'stockPolicy'].forEach(function(field) {
       if (!hasWooDraftBridgeValue_(row && row[field])) candidate.missingFields.push(field);
     });
+    if (candidate.missingFields.length > 0) {
+      candidate.reason = 'required_candidate_fields_missing';
+      result.unresolvedRows.push(candidate);
+      result.accounting.push({ sourceIndex: index, classification: 'unresolvedRows' });
+      return;
+    }
     result.newDraftCandidates.push(candidate);
     result.accounting.push({ sourceIndex: index, classification: 'newDraftCandidates' });
   });

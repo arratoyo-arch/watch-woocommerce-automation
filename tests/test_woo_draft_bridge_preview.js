@@ -84,7 +84,84 @@ assert.strictEqual(result.excludedRows.length, 4);
 result = bridge.buildWooDraftBridgePreview([sourceRow({ price: '', images: [], description: '', categories: [], tags: [], stockPolicy: '' })], [], { wooFetchComplete: true });
 assert.strictEqual(result.missingPrices.length, 1);
 assert.strictEqual(result.missingImages.length, 1);
-assert.deepStrictEqual(result.newDraftCandidates[0].missingFields, ['price', 'images', 'description', 'categories', 'tags', 'stockPolicy']);
+assert.strictEqual(result.newDraftCandidates.length, 0);
+assert.strictEqual(result.firstFiveCandidates.length, 0);
+assert.strictEqual(result.unresolvedRows.length, 1);
+assert.deepStrictEqual(result.unresolvedRows[0].missingFields, ['price', 'images', 'description', 'categories', 'tags', 'stockPolicy']);
+assert.strictEqual(result.unresolvedRows[0].reason, 'required_candidate_fields_missing');
+assert.deepStrictEqual(result.accounting, [{ sourceIndex: 0, classification: 'unresolvedRows' }]);
+assert.strictEqual(result.accountingComplete, true);
+
+result = bridge.buildWooDraftBridgePreview([
+  sourceRow({ model: 'GBD-200-1JF', title: 'Casio GBD-200-1JF New Watch' }),
+  sourceRow({ model: 'GBD-200-2JF', title: 'Casio GBD-200-2JF New Watch', price: '', images: [] })
+], [], { wooFetchComplete: true });
+assert.strictEqual(result.newDraftCandidates.length, 1);
+assert.strictEqual(result.unresolvedRows.length, 1);
+assert.strictEqual(result.firstFiveCandidates.length, 1);
+assert.strictEqual(result.firstFiveCandidates[0].model, 'GBD-200-1JF');
+assert.deepStrictEqual(result.accounting.map(item => item.classification), ['newDraftCandidates', 'unresolvedRows']);
+assert.strictEqual(result.accountingComplete, true);
+
+result = bridge.buildWooDraftBridgePreview([sourceRow()], [
+  { id: 1, status: 'publish', sku: 'GBD-200-9JF', name: 'First' },
+  { id: 2, status: 'draft', sku: 'GBD-200-9JF', name: 'Second' }
+], { wooFetchComplete: true });
+assert.strictEqual(result.existingWooProducts.length, 0);
+assert.strictEqual(result.unresolvedRows[0].reason, 'multiple_woo_product_matches');
+assert.strictEqual(result.unresolvedRows[0].matchedProducts.length, 2);
+assert.strictEqual(result.readyForDraftSelection, false);
+assert.strictEqual(result.firstFiveCandidates.length, 0);
+
+result = bridge.buildWooDraftBridgePreview([sourceRow()], [
+  { id: 3, status: 'publish', sku: '', name: 'Casio GBD-200-9JF First' },
+  { id: 4, status: 'pending', sku: '', name: 'Casio GBD 200 9JF Second' }
+], { wooFetchComplete: true });
+assert.strictEqual(result.unresolvedRows[0].reason, 'multiple_woo_product_matches');
+assert.deepStrictEqual(result.unresolvedRows[0].matchMethod, ['name', 'name']);
+assert.strictEqual(result.readyForDraftSelection, false);
+
+result = bridge.buildWooDraftBridgePreview([
+  sourceRow({ condition: '', title: 'Casio GBD-200-9JF New battery installed' }),
+  sourceRow({ condition: '', title: 'Casio GBD-200-9JF New model' }),
+  sourceRow({ condition: 'Used', title: 'Casio GBD-200-9JF New battery installed' }),
+  sourceRow({ condition: 'New' })
+], [], { wooFetchComplete: true });
+assert.strictEqual(result.excludedRows.length, 3);
+assert.strictEqual(result.newDraftCandidates.length, 1);
+
+for (const condition of ['New', 'Brand New', 'Unused', 'New with tags', 'New without tags', '新品', '未使用']) {
+  result = bridge.buildWooDraftBridgePreview([sourceRow({ condition })], [], { wooFetchComplete: true });
+  assert.strictEqual(result.newDraftCandidates.length, 1, condition + ' must be accepted');
+}
+
+for (const [field, value] of [['model', 'GBD-200-9JF'], ['modelNumber', 'ＧＢＤ－２００－９ＪＦ'], ['model_number', 'GBD 200 9JF']]) {
+  result = bridge.buildWooDraftBridgePreview([sourceRow()], [
+    Object.assign({ id: field, status: 'publish', sku: '', name: 'No model evidence in name' }, { [field]: value })
+  ], { wooFetchComplete: true });
+  assert.strictEqual(result.existingWooProducts.length, 1, field + ' must match exactly');
+  assert.strictEqual(result.existingWooProducts[0].matchMethod, 'model');
+}
+
+result = bridge.buildWooDraftBridgePreview([sourceRow()], [
+  { id: 5, status: 'publish', sku: 'GBD-200-9JF', model: 'GBD-200-1JF', name: 'No model evidence in name' }
+], { wooFetchComplete: true });
+assert.strictEqual(result.unresolvedRows[0].reason, 'woo_identity_conflict');
+assert.strictEqual(result.readyForDraftSelection, false);
+
+result = bridge.buildWooDraftBridgePreview([sourceRow()], [
+  { id: 6, status: 'publish', sku: '', model: 'GBD-200-9JF', modelNumber: 'GBD-200-1JF', name: 'No model evidence in name' }
+], { wooFetchComplete: true });
+assert.strictEqual(result.unresolvedRows[0].reason, 'woo_identity_conflict');
+assert.ok(result.unresolvedRows[0].matchedProducts[0].conflicts.includes('multiple_explicit_model_values'));
+assert.strictEqual(result.readyForDraftSelection, false);
+
+result = bridge.buildWooDraftBridgePreview([sourceRow()], [
+  { id: 7, status: 'publish', sku: 'GBD-200-9JF', name: 'Casio GBD-200-1JF New Watch' }
+], { wooFetchComplete: true });
+assert.strictEqual(result.unresolvedRows[0].reason, 'woo_identity_conflict');
+assert.ok(result.unresolvedRows[0].matchedProducts[0].conflicts.includes('name_model_conflicts_with_matched_identity'));
+assert.strictEqual(result.readyForDraftSelection, false);
 
 result = bridge.buildWooDraftBridgePreview([sourceRow()], [], { wooFetchComplete: false });
 assert.strictEqual(result.readyForDraftSelection, false);

@@ -256,7 +256,11 @@ Please confirm the product images, model number, and specifications before purch
 
 `buildWooDraftBridgePreview(sourceRows, wooProducts, options)` は純粋なPreview builderです。APIやSpreadsheetを呼ばず、商品作成・更新・Publishも行いません。呼び出し側がWoo商品の `publish`、`draft`、`pending` を完全取得できた場合だけ `options.wooFetchComplete: true` を指定します。取得不完全、warnings/errorsあり、または全入力行のaccounting不一致の場合はfail-closedとなり、`readyForDraftSelection` は `false`、`firstFiveCandidates` は空になります。
 
-各入力行は `newDraftCandidates`、`existingWooProducts`、`duplicates`、`excludedRows`、`invalidModels`、`unresolvedRows` のいずれか1つに分類されます。SKU完全一致を優先し、商品名はNFKC・大文字・共通ハイフンへ正規化したうえで、英数字境界を持つ型番セグメントの完全一致だけを採用します。価格、画像、説明、カテゴリー、タグ、在庫方針の不足は推測せず、構造化Preview内に明示します。`firstFiveCandidates` は最大5件の人間によるDraft選択候補であり、Draft作成指示ではありません。
+各入力行は `newDraftCandidates`、`existingWooProducts`、`duplicates`、`excludedRows`、`invalidModels`、`unresolvedRows` のいずれか1つに分類されます。安全な候補には `price`、`images`、`description`、`categories`、`tags`、`stockPolicy` のすべてが必要です。不足行は `missingFields` と理由を保持して `unresolvedRows` に入り、`newDraftCandidates` と `firstFiveCandidates` には入りません。
+
+Woo商品配列の明示的な型番入力フィールドは `model`、`modelNumber`、`model_number` です。照合はSKU完全一致、明示的な型番完全一致、商品名証拠の順に優先します。商品名はNFKC・大文字・共通ハイフンへ正規化したうえで、英数字境界を持つ型番セグメントの完全一致だけを採用します。複数Woo商品が一致する場合、複数の明示型番がある場合、またはSKU・明示型番・商品名証拠に明確な矛盾がある場合は `unresolvedRows` とwarningへ送り、選択処理をfail-closedにします。任意の `meta_data` は型番証拠として使用しません。
+
+新品判定は構造化された `condition` または `itemCondition` の明示値だけを使用し、商品名や `category` に含まれる単語 `New` は新品証拠にしません。`firstFiveCandidates` は完全な候補から最大5件を提示する人間確認用のDraft選択候補であり、Draft作成指示ではありません。
 
 ### watch-ebay-automation（参照用）
 
