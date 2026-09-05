@@ -247,10 +247,16 @@ Please confirm the product images, model number, and specifications before purch
 | ファイル | 責務 |
 | --- | --- |
 | `woocommerce.gs` | WooCommerce API 接続、商品取得、SKU・価格・在庫更新、preview-before-production、`Woo_Products` / `WC_Keep_Active` ワークフロー |
-| `woo_draft_bridge.gs` | WDB モデル番号から WooCommerce draft 候補を作成し、未出品モデルだけを draft 化する橋渡し処理（存在する場合） |
+| `woo_draft_bridge.gs` | 外部のread-only処理から受け取った中立的な候補行と、完全取得済みのWoo商品配列を照合するPreview-only処理 |
 | `utils.gs` | 共通ユーティリティ、入力検証、シート補助、ログ補助など |
 | `README.md` | 運用目的、リポジトリ分離、シート責務、安全運用ルール |
 | `AGENTS.md` | Codex が恒久的に守る開発・運用ガードレール |
+
+### Preview-only Woo Draft Bridge
+
+`buildWooDraftBridgePreview(sourceRows, wooProducts, options)` は純粋なPreview builderです。APIやSpreadsheetを呼ばず、商品作成・更新・Publishも行いません。呼び出し側がWoo商品の `publish`、`draft`、`pending` を完全取得できた場合だけ `options.wooFetchComplete: true` を指定します。取得不完全、warnings/errorsあり、または全入力行のaccounting不一致の場合はfail-closedとなり、`readyForDraftSelection` は `false`、`firstFiveCandidates` は空になります。
+
+各入力行は `newDraftCandidates`、`existingWooProducts`、`duplicates`、`excludedRows`、`invalidModels`、`unresolvedRows` のいずれか1つに分類されます。SKU完全一致を優先し、商品名はNFKC・大文字・共通ハイフンへ正規化したうえで、英数字境界を持つ型番セグメントの完全一致だけを採用します。価格、画像、説明、カテゴリー、タグ、在庫方針の不足は推測せず、構造化Preview内に明示します。`firstFiveCandidates` は最大5件の人間によるDraft選択候補であり、Draft作成指示ではありません。
 
 ### watch-ebay-automation（参照用）
 
