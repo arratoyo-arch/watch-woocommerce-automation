@@ -1,11 +1,18 @@
 ---
 name: copy-ebay-products-to-woo
-description: Copy new-watch product data from watch-ebay-automation Active_listing into the watch-woocommerce-automation workflow without moving, deleting, or changing eBay listings. Use when the user asks to copy, duplicate, migrate, or register the current eBay watch catalog in WooCommerce or watch-tokyo.com, including requests mentioning about 500 Active listings. Keep the source read-only, deduplicate by normalized model, exclude existing Woo products and drafts, and require reviewed small-batch draft creation.
+description: Copy new-watch product data from the main watch-ebay-automation system into the subordinate watch-woocommerce-automation sales channel without moving, deleting, or changing eBay listings. Use when the user asks to copy, duplicate, or register the current eBay watch catalog in WooCommerce or watch-tokyo.com, including requests mentioning about 500 Active listings. Keep eBay as the source of truth, keep Active_listing read-only, deduplicate by normalized model, exclude existing Woo products and drafts, and require reviewed small-batch draft creation.
 ---
 
 # Copy eBay Products to WooCommerce
 
 Treat this as a copy of product data, never a repository replacement or transfer of listings. Preserve eBay listings and both repositories.
+
+## System hierarchy
+
+- Treat `watch-ebay-automation` as the main system and source of truth for product selection, active-listing state, inventory review, pricing judgment, and sales decisions.
+- Treat `watch-woocommerce-automation` as a subordinate sales channel that receives reviewed copies of eligible product data.
+- Never let WooCommerce data override, replace, or become the authoritative source for eBay operations.
+- When using ChatGPT Work with both folders, keep `watch-ebay-automation` as the primary project folder and attach `watch-woocommerce-automation` as the secondary folder.
 
 ## Boundaries
 
