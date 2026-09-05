@@ -6,6 +6,11 @@
 var WOO_DRAFT_BRIDGE_BRANDS_ = ['CASIO', 'CITIZEN', 'SEIKO', 'ORIENT'];
 var WOO_DRAFT_BRIDGE_EXISTING_STATUSES_ = ['publish', 'draft', 'pending'];
 var WOO_DRAFT_BRIDGE_HYPHENS_ = /[‐‑‒–—―−ーｰ]/g;
+var WOO_DRAFT_BRIDGE_WRISTWATCH_TYPES_ = ['WRISTWATCH', '腕時計'];
+var WOO_DRAFT_BRIDGE_NON_WRISTWATCH_TYPES_ = [
+  'CALCULATOR', 'CLOCK', 'TABLE CLOCK', 'WALL CLOCK', 'ACCESSORY',
+  'WATCH ACCESSORY', 'BAND', 'STRAP', 'PARTS'
+];
 
 function normalizeWooDraftBridgeText_(value) {
   return String(value === undefined || value === null ? '' : value)
@@ -86,6 +91,25 @@ function classifyWooDraftBridgeSource_(row, index) {
     sourceRowNumber: sourceRowNumber === '' ? index + 1 : sourceRowNumber,
     source: row
   };
+  var productType = normalizeWooDraftBridgeText_(
+    getWooDraftBridgeValue_(row, ['productType'])
+  ).trim().replace(/\s+/g, ' ');
+  classified.productType = productType;
+  if (!productType) {
+    classified.classification = 'unresolved';
+    classified.reason = 'product_type_missing';
+    return classified;
+  }
+  if (WOO_DRAFT_BRIDGE_NON_WRISTWATCH_TYPES_.indexOf(productType) !== -1) {
+    classified.classification = 'excluded';
+    classified.reason = 'non_wristwatch_product_type';
+    return classified;
+  }
+  if (WOO_DRAFT_BRIDGE_WRISTWATCH_TYPES_.indexOf(productType) === -1) {
+    classified.classification = 'unresolved';
+    classified.reason = 'product_type_unknown';
+    return classified;
+  }
   var condition = normalizeWooDraftBridgeText_(
     getWooDraftBridgeValue_(row, ['condition', 'itemCondition'])
   ).trim().replace(/\s+/g, ' ');
@@ -164,8 +188,38 @@ function findWooDraftBridgeProductMatches_(products, model) {
   return matches;
 }
 
-function hasWooDraftBridgeValue_(value) {
-  return !(value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0));
+function isWooDraftBridgeNonBlankString_(value) {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function isWooDraftBridgePositivePrice_(value) {
+  if (typeof value !== 'string' && typeof value !== 'number') return false;
+  if (typeof value === 'string' && !value.trim()) return false;
+  var amount = Number(value);
+  return isFinite(amount) && amount > 0;
+}
+
+function isWooDraftBridgeImageReference_(value) {
+  if (isWooDraftBridgeNonBlankString_(value)) return true;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  return isWooDraftBridgeNonBlankString_(value.src) || isWooDraftBridgeNonBlankString_(value.url);
+}
+
+function hasWooDraftBridgeImages_(value) {
+  var items = Array.isArray(value) ? value : [value];
+  return items.some(isWooDraftBridgeImageReference_);
+}
+
+function isWooDraftBridgeNamedReference_(value) {
+  if (isWooDraftBridgeNonBlankString_(value)) return true;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  if (isWooDraftBridgeNonBlankString_(value.name)) return true;
+  return (typeof value.id === 'number' && isFinite(value.id) && value.id > 0) ||
+    (typeof value.id === 'string' && value.id.trim().length > 0);
+}
+
+function hasWooDraftBridgeNamedReferences_(value) {
+  return Array.isArray(value) && value.some(isWooDraftBridgeNamedReference_);
 }
 
 function buildWooDraftBridgePreview(sourceRows, wooProducts, options) {
@@ -277,17 +331,18 @@ function buildWooDraftBridgePreview(sourceRows, wooProducts, options) {
     };
     var price = getWooDraftBridgeValue_(row, ['price', 'regularPrice', 'regular_price']);
     var images = getWooDraftBridgeValue_(row, ['images', 'imageUrls', 'image_urls', 'image']);
-    if (!hasWooDraftBridgeValue_(price)) {
+    if (!isWooDraftBridgePositivePrice_(price)) {
       candidate.missingFields.push('price');
       result.missingPrices.push(candidate);
     }
-    if (!hasWooDraftBridgeValue_(images)) {
+    if (!hasWooDraftBridgeImages_(images)) {
       candidate.missingFields.push('images');
       result.missingImages.push(candidate);
     }
-    ['description', 'categories', 'tags', 'stockPolicy'].forEach(function(field) {
-      if (!hasWooDraftBridgeValue_(row && row[field])) candidate.missingFields.push(field);
-    });
+    if (!isWooDraftBridgeNonBlankString_(row && row.description)) candidate.missingFields.push('description');
+    if (!hasWooDraftBridgeNamedReferences_(row && row.categories)) candidate.missingFields.push('categories');
+    if (!hasWooDraftBridgeNamedReferences_(row && row.tags)) candidate.missingFields.push('tags');
+    if (!isWooDraftBridgeNonBlankString_(row && row.stockPolicy)) candidate.missingFields.push('stockPolicy');
     if (candidate.missingFields.length > 0) {
       candidate.reason = 'required_candidate_fields_missing';
       result.unresolvedRows.push(candidate);

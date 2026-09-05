@@ -9,6 +9,7 @@ const bridge = require('../woo_draft_bridge.gs');
 function sourceRow(overrides) {
   return Object.assign({
     brand: 'CASIO', model: 'GBD-200-9JF', title: 'Casio GBD-200-9JF New Watch', condition: 'New',
+    productType: 'WRISTWATCH',
     price: '199', images: ['read-only-image-reference'], description: 'Needs human review',
     categories: ['Watches'], tags: ['JDM'], stockPolicy: 'Human confirmation required'
   }, overrides || {});
@@ -81,6 +82,34 @@ result = bridge.buildWooDraftBridgePreview([
 ], [], { wooFetchComplete: true });
 assert.strictEqual(result.excludedRows.length, 4);
 
+result = bridge.buildWooDraftBridgePreview([
+  sourceRow({ productType: 'WRISTWATCH' }),
+  sourceRow({ model: 'NB1050-59E', brand: 'CITIZEN', title: 'Citizen NB1050-59E New Watch', productType: '腕時計' })
+], [], { wooFetchComplete: true });
+assert.strictEqual(result.newDraftCandidates.length, 2);
+
+result = bridge.buildWooDraftBridgePreview([
+  sourceRow({ model: 'FX-991CW', title: 'Casio FX-991CW Scientific Calculator', productType: 'CALCULATOR' }),
+  sourceRow({ model: 'DQ-750J-8JF', title: 'Casio DQ-750J-8JF Clock', productType: 'CLOCK' }),
+  sourceRow({ title: 'Casio watch accessory New', productType: 'ACCESSORY' }),
+  sourceRow({ productType: 'CALCULATOR', title: 'Casio GBD-200-9JF Watch' })
+], [], { wooFetchComplete: true });
+assert.strictEqual(result.excludedRows.length, 4);
+assert.ok(result.excludedRows.every(item => item.reason === 'non_wristwatch_product_type' || item.reason === 'not_a_new_watch'));
+assert.strictEqual(result.newDraftCandidates.length, 0);
+
+result = bridge.buildWooDraftBridgePreview([
+  sourceRow({ productType: '' }),
+  sourceRow({ productType: 'UNKNOWN' }),
+  sourceRow({ productType: '', categories: ['Watches'] }),
+  sourceRow({ productType: '', title: 'Casio watch accessory New' })
+], [], { wooFetchComplete: true });
+assert.strictEqual(result.unresolvedRows.length, 4);
+assert.deepStrictEqual(result.unresolvedRows.map(item => item.reason), ['product_type_missing', 'product_type_unknown', 'product_type_missing', 'product_type_missing']);
+assert.strictEqual(result.newDraftCandidates.length, 0);
+assert.strictEqual(result.accounting.length, 4);
+assert.strictEqual(result.accountingComplete, true);
+
 result = bridge.buildWooDraftBridgePreview([sourceRow({ price: '', images: [], description: '', categories: [], tags: [], stockPolicy: '' })], [], { wooFetchComplete: true });
 assert.strictEqual(result.missingPrices.length, 1);
 assert.strictEqual(result.missingImages.length, 1);
@@ -91,6 +120,38 @@ assert.deepStrictEqual(result.unresolvedRows[0].missingFields, ['price', 'images
 assert.strictEqual(result.unresolvedRows[0].reason, 'required_candidate_fields_missing');
 assert.deepStrictEqual(result.accounting, [{ sourceIndex: 0, classification: 'unresolvedRows' }]);
 assert.strictEqual(result.accountingComplete, true);
+
+const invalidRequiredFixtures = [
+  { price: '   ', images: [''], description: ' ', categories: [''], tags: [' '], stockPolicy: ' ' },
+  { price: '\t\n　', images: ['   '], description: '\t\n　', categories: [null], tags: [null], stockPolicy: '\t' },
+  { images: [null] }, { images: [{}] }, { images: [{ src: '   ' }] },
+  { categories: [''] }, { categories: [null] }, { tags: ['   '] },
+  { price: '0' }, { price: 0 }, { price: '-1' }, { price: 'NaN' },
+  { price: Infinity }, { price: {} }, { description: '   ' }, { stockPolicy: '\t' }
+];
+for (const overrides of invalidRequiredFixtures) {
+  result = bridge.buildWooDraftBridgePreview([sourceRow(overrides)], [], { wooFetchComplete: true });
+  assert.strictEqual(result.newDraftCandidates.length, 0, JSON.stringify(overrides));
+  assert.strictEqual(result.firstFiveCandidates.length, 0, JSON.stringify(overrides));
+  assert.strictEqual(result.unresolvedRows.length, 1, JSON.stringify(overrides));
+  assert.strictEqual(result.accounting.length, 1, JSON.stringify(overrides));
+  assert.strictEqual(result.accounting[0].classification, 'unresolvedRows', JSON.stringify(overrides));
+  assert.strictEqual(result.accountingComplete, true, JSON.stringify(overrides));
+}
+
+result = bridge.buildWooDraftBridgePreview([sourceRow({
+  images: ['', { src: 'image-ref' }], categories: [null, { name: 'Watches' }], tags: [' ', { id: 10 }]
+})], [], { wooFetchComplete: true });
+assert.strictEqual(result.newDraftCandidates.length, 1);
+
+result = bridge.buildWooDraftBridgePreview([
+  sourceRow({ model: 'GBD-200-1JF', title: 'Casio GBD-200-1JF New Watch' }),
+  sourceRow({ model: 'GBD-200-2JF', title: 'Casio GBD-200-2JF New Watch', price: ' ', images: [' '] })
+], [], { wooFetchComplete: true });
+assert.strictEqual(result.newDraftCandidates.length, 1);
+assert.strictEqual(result.unresolvedRows.length, 1);
+assert.deepStrictEqual(result.firstFiveCandidates.map(item => item.model), ['GBD-200-1JF']);
+assert.deepStrictEqual(result.accounting.map(item => item.classification), ['newDraftCandidates', 'unresolvedRows']);
 
 result = bridge.buildWooDraftBridgePreview([
   sourceRow({ model: 'GBD-200-1JF', title: 'Casio GBD-200-1JF New Watch' }),
@@ -172,7 +233,7 @@ assert.strictEqual(result.readyForDraftSelection, false);
 const fixtureCount = 550;
 const largeFixture = Array.from({ length: fixtureCount }, (_, index) => sourceRow({
   brand: 'SEIKO', model: `SBTR${String(index + 100).padStart(3, '0')}`,
-  title: `Seiko SBTR${String(index + 100).padStart(3, '0')} New Watch`, sourceRowNumber: index + 2
+  title: `Seiko SBTR${String(index + 100).padStart(3, '0')} New Watch`, productType: 'WRISTWATCH', sourceRowNumber: index + 2
 }));
 result = bridge.buildWooDraftBridgePreview(largeFixture, [], { wooFetchComplete: true });
 assert.strictEqual(result.sourceRows, fixtureCount);

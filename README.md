@@ -256,7 +256,9 @@ Please confirm the product images, model number, and specifications before purch
 
 `buildWooDraftBridgePreview(sourceRows, wooProducts, options)` は純粋なPreview builderです。APIやSpreadsheetを呼ばず、商品作成・更新・Publishも行いません。呼び出し側がWoo商品の `publish`、`draft`、`pending` を完全取得できた場合だけ `options.wooFetchComplete: true` を指定します。取得不完全、warnings/errorsあり、または全入力行のaccounting不一致の場合はfail-closedとなり、`readyForDraftSelection` は `false`、`firstFiveCandidates` は空になります。
 
-各入力行は `newDraftCandidates`、`existingWooProducts`、`duplicates`、`excludedRows`、`invalidModels`、`unresolvedRows` のいずれか1つに分類されます。安全な候補には `price`、`images`、`description`、`categories`、`tags`、`stockPolicy` のすべてが必要です。不足行は `missingFields` と理由を保持して `unresolvedRows` に入り、`newDraftCandidates` と `firstFiveCandidates` には入りません。
+各入力行は `newDraftCandidates`、`existingWooProducts`、`duplicates`、`excludedRows`、`invalidModels`、`unresolvedRows` のいずれか1つに分類されます。中立的なsource rowには、信頼できる商品種別証拠から呼び出し側が設定した構造化フィールド `productType` が必須です。NFKC・大文字化・trim後の完全一致で `WRISTWATCH` または `腕時計` だけを安全な腕時計として許可します。`CALCULATOR`、`CLOCK`、`ACCESSORY`など明示的な非腕時計値は `excludedRows`、空欄や未知値は理由付きで `unresolvedRows` に入ります。title、categories、モデル番号、ブランド名だけから腕時計とは推測しません。
+
+安全な候補には `price`、`images`、`description`、`categories`、`tags`、`stockPolicy` のすべてが必要です。`price` は有限の正数、`images` は非空文字列または非空の `src` / `url` を持つ要素が最低1件、`description` と `stockPolicy` はtrim後に非空の文字列を要求します。`categories` と `tags` は配列とし、非空文字列、非空の `name`、または正の数値・非空文字列の `id` を持つ要素が最低1件必要です。通常空白、タブ、改行、全角空白だけの文字列、空要素だけの配列、0・負数・NaN・Infinity・任意objectのpriceは不足扱いです。不足行は `missingFields` と理由を保持して `unresolvedRows` に入り、`newDraftCandidates` と `firstFiveCandidates` には入りません。画像URLへのアクセスや価格換算は行いません。
 
 Woo商品配列の明示的な型番入力フィールドは `model`、`modelNumber`、`model_number` です。照合はSKU完全一致、明示的な型番完全一致、商品名証拠の順に優先します。商品名はNFKC・大文字・共通ハイフンへ正規化したうえで、英数字境界を持つ型番セグメントの完全一致だけを採用します。複数Woo商品が一致する場合、複数の明示型番がある場合、またはSKU・明示型番・商品名証拠に明確な矛盾がある場合は `unresolvedRows` とwarningへ送り、選択処理をfail-closedにします。任意の `meta_data` は型番証拠として使用しません。
 
