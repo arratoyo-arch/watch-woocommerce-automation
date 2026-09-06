@@ -67,26 +67,10 @@ function uniqueWooDraftBridgeModels_(models) {
   });
 }
 
-function isWooDraftBridgeNameModelCandidate_(value) {
-  var normalized = normalizeWooDraftBridgeText_(value).trim();
-  if (!/^[A-Z]/.test(normalized) || !getValidWooDraftBridgeModelKey_(normalized)) return false;
-  var firstSegment = normalized.split(/[\s-]+/)[0];
-  var leadingLetters = firstSegment.match(/^[A-Z]+/);
-  return !!leadingLetters && leadingLetters[0].length <= 4;
-}
-
-function extractWooDraftBridgeModels_(value) {
-  var text = normalizeWooDraftBridgeText_(value);
-  var tokenPattern = /(^|[^A-Z0-9])([A-Z0-9]+(?:-[A-Z0-9]+)+|[A-Z]{1,8}(?:\s+[A-Z0-9]*[0-9][A-Z0-9]*){2,}|[A-Z]{1,8}[0-9][A-Z0-9]{2,})(?=$|[^A-Z0-9])/g;
-  var tokens = [];
-  var match;
-  while ((match = tokenPattern.exec(text)) !== null) {
-    tokens.push(match[2]);
-  }
-  return uniqueWooDraftBridgeModels_(tokens.map(function(token) {
-    return token.trim().replace(/[\s-]+/g, '-');
-  }).filter(function(token) {
-    return isWooDraftBridgeNameModelCandidate_(token);
+function extractWooDraftBridgeModels_(value, allowedModels) {
+  if (!Array.isArray(allowedModels)) return [];
+  return uniqueWooDraftBridgeModels_(allowedModels.filter(function(model) {
+    return !!getValidWooDraftBridgeModelKey_(model) && wooDraftBridgeNameHasExactModel_(value, model);
   }));
 }
 
@@ -198,7 +182,12 @@ function classifyWooDraftBridgeSource_(row, index) {
 
   var explicitValue = getWooDraftBridgeValue_(row, ['model', 'modelNumber', 'model_number']);
   var models = parseWooDraftBridgeExplicitModels_(explicitValue);
-  if (!models.length && !String(explicitValue || '').trim()) models = extractWooDraftBridgeModels_(title);
+  if (!models.length && !String(explicitValue || '').trim()) {
+    classified.classification = 'unresolved';
+    classified.reason = 'structured_model_missing';
+    classified.modelCandidates = [];
+    return classified;
+  }
   var validModels = models.filter(function(model) {
     return !!getValidWooDraftBridgeModelKey_(model);
   });
@@ -234,7 +223,7 @@ function findWooDraftBridgeProductMatches_(products, model) {
     var skuKey = normalizeWooDraftBridgeModelKey_(product && product.sku);
     var productModels = getWooDraftBridgeProductModels_(product);
     var productModelKeys = productModels.map(normalizeWooDraftBridgeModelKey_);
-    var nameModels = extractWooDraftBridgeModels_(product && product.name);
+    var nameModels = extractWooDraftBridgeModels_(product && product.name, [model]);
     var nameModelKeys = nameModels.map(normalizeWooDraftBridgeModelKey_);
     var skuMatch = !!skuKey && skuKey === modelKey;
     var modelMatch = productModelKeys.indexOf(modelKey) !== -1;
@@ -243,7 +232,6 @@ function findWooDraftBridgeProductMatches_(products, model) {
 
     var conflicts = [];
     if (productModelKeys.length > 1) conflicts.push('multiple_explicit_model_values');
-    if (nameModelKeys.length > 1) conflicts.push('multiple_name_model_values');
     if (skuKey && !skuMatch && (modelMatch || nameMatch)) conflicts.push('sku_conflicts_with_matched_identity');
     if (productModelKeys.length && !modelMatch && (skuMatch || nameMatch)) conflicts.push('explicit_model_conflicts_with_matched_identity');
     if (nameModelKeys.length && nameModelKeys.indexOf(modelKey) === -1 && (skuMatch || modelMatch)) conflicts.push('name_model_conflicts_with_matched_identity');
@@ -332,6 +320,25 @@ function getMissingWooDraftBridgeDescriptionFields_(row, source) {
   return missing;
 }
 
+function buildWooDraftBridgeDescription_(content) {
+  var keyFeatures = Array.isArray(content.keyFeatures) ? content.keyFeatures.filter(isWooDraftBridgeSubstantiveString_) : [content.keyFeatures];
+  return [
+    'Model: ' + content.model,
+    'Brand: ' + content.brand,
+    'Series: ' + content.series.trim(),
+    'Key features: ' + keyFeatures.map(function(value) { return value.trim(); }).join('; '),
+    'Condition: New / unused.',
+    'Japan domestic model / JDM.',
+    'Authentic product sourced from Japan.',
+    'Free international shipping from Japan.',
+    'Tracking and careful packing are included.',
+    "Customs / import duties are the buyer's responsibility where applicable.",
+    'Before purchase, the buyer should check the model number, specifications, size, and compatibility.',
+    'The buyer should contact the store before ordering if there are questions.',
+    'Human confirmation is required before publish.'
+  ].join('\n');
+}
+
 function validateWooDraftBridgeProduct_(product, sourceModels) {
   if (product === null) return 'must be a non-null object';
   if (typeof product !== 'object') return 'must be an object';
@@ -350,7 +357,7 @@ function validateWooDraftBridgeProduct_(product, sourceModels) {
   }
   if (Object.prototype.hasOwnProperty.call(product, 'name') && product.name !== '') {
     if (!isWooDraftBridgeNonBlankString_(product.name)) return 'name must be a non-blank string when provided';
-    extractWooDraftBridgeModels_(product.name).forEach(function(model) {
+    extractWooDraftBridgeModels_(product.name, sourceModels).forEach(function(model) {
       identityKeys.push(getValidWooDraftBridgeModelKey_(model));
     });
     sourceModels.forEach(function(model) {
@@ -527,6 +534,8 @@ function buildWooDraftBridgePreview(sourceRows, wooProducts, options) {
     candidate.images = selectedImages.value;
     candidate.imagesAlias = selectedImages.alias;
     candidate.descriptionContent = row && row.descriptionContent;
+    candidate.sourceDescription = isWooDraftBridgeNonBlankString_(row && row.description) ? row.description : '';
+    candidate.description = '';
     candidate.missingDescriptionFields = [];
     if (!source.productName) candidate.missingFields.push('productName');
     if (!selectedPrice.alias) {
@@ -537,7 +546,6 @@ function buildWooDraftBridgePreview(sourceRows, wooProducts, options) {
       candidate.missingFields.push('images');
       result.missingImages.push(candidate);
     }
-    if (!isWooDraftBridgeNonBlankString_(row && row.description)) candidate.missingFields.push('description');
     candidate.missingDescriptionFields = getMissingWooDraftBridgeDescriptionFields_(row, source);
     candidate.missingFields = candidate.missingFields.concat(candidate.missingDescriptionFields);
     if (!hasWooDraftBridgeNamedReferences_(row && row.categories)) candidate.missingFields.push('categories');
@@ -550,6 +558,7 @@ function buildWooDraftBridgePreview(sourceRows, wooProducts, options) {
       result.accounting.push({ sourceIndex: index, classification: 'unresolvedRows' });
       return;
     }
+    candidate.description = buildWooDraftBridgeDescription_(candidate.descriptionContent);
     result.newDraftCandidates.push(candidate);
     result.accounting.push({ sourceIndex: index, classification: 'newDraftCandidates' });
   });
