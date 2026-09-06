@@ -5,6 +5,7 @@
 
 var WOO_DRAFT_BRIDGE_BRANDS_ = ['CASIO', 'CITIZEN', 'SEIKO', 'ORIENT'];
 var WOO_DRAFT_BRIDGE_EXISTING_STATUSES_ = ['publish', 'draft', 'pending'];
+var WOO_DRAFT_BRIDGE_NEW_CONDITIONS_ = ['NEW', 'BRAND NEW', 'UNUSED', 'NEW WITH TAGS', 'NEW WITHOUT TAGS', '新品', '未使用'];
 var WOO_DRAFT_BRIDGE_HYPHENS_ = /[‐‑‒–—―−ーｰ]/g;
 var WOO_DRAFT_BRIDGE_WRISTWATCH_TYPES_ = ['WRISTWATCH', '腕時計'];
 var WOO_DRAFT_BRIDGE_NON_WRISTWATCH_TYPES_ = [
@@ -66,6 +67,14 @@ function uniqueWooDraftBridgeModels_(models) {
   });
 }
 
+function isWooDraftBridgeNameModelCandidate_(value) {
+  var normalized = normalizeWooDraftBridgeText_(value).trim();
+  if (!/^[A-Z]/.test(normalized) || !getValidWooDraftBridgeModelKey_(normalized)) return false;
+  var firstSegment = normalized.split(/[\s-]+/)[0];
+  var leadingLetters = firstSegment.match(/^[A-Z]+/);
+  return !!leadingLetters && leadingLetters[0].length <= 4;
+}
+
 function extractWooDraftBridgeModels_(value) {
   var text = normalizeWooDraftBridgeText_(value);
   var tokenPattern = /(^|[^A-Z0-9])([A-Z0-9]+(?:-[A-Z0-9]+)+|[A-Z]{1,8}(?:\s+[A-Z0-9]*[0-9][A-Z0-9]*){2,}|[A-Z]{1,8}[0-9][A-Z0-9]{2,})(?=$|[^A-Z0-9])/g;
@@ -77,7 +86,7 @@ function extractWooDraftBridgeModels_(value) {
   return uniqueWooDraftBridgeModels_(tokens.map(function(token) {
     return token.trim().replace(/[\s-]+/g, '-');
   }).filter(function(token) {
-    return !!getValidWooDraftBridgeModelKey_(token);
+    return isWooDraftBridgeNameModelCandidate_(token);
   }));
 }
 
@@ -111,11 +120,6 @@ function wooDraftBridgeNameHasExactModel_(name, model) {
 
 function classifyWooDraftBridgeSource_(row, index) {
   var title = getWooDraftBridgeStringValue_(row, ['title', 'name', 'productName']);
-  var brandValue = String(getWooDraftBridgeValue_(row, ['brand', 'maker']) || '');
-  var brandEvidence = normalizeWooDraftBridgeText_(brandValue + ' ' + title);
-  var brands = WOO_DRAFT_BRIDGE_BRANDS_.filter(function(brand) {
-    return new RegExp('(^|[^A-Z])' + brand + '([^A-Z]|$)').test(brandEvidence);
-  });
   var sourceRowNumber = getWooDraftBridgeValue_(row, ['sourceRowNumber', 'sourceRow', 'rowNumber']);
   var classified = {
     sourceIndex: index,
@@ -141,19 +145,54 @@ function classifyWooDraftBridgeSource_(row, index) {
     classified.reason = 'product_type_unknown';
     return classified;
   }
+  var structuredBrands = [];
+  var brandFields = ['brand', 'maker'];
+  for (var brandIndex = 0; brandIndex < brandFields.length; brandIndex++) {
+    var brandField = brandFields[brandIndex];
+    if (!row || !Object.prototype.hasOwnProperty.call(row, brandField) || row[brandField] === '') continue;
+    if (!isWooDraftBridgeNonBlankString_(row[brandField])) {
+      classified.classification = 'unresolved';
+      classified.reason = 'structured_brand_invalid';
+      return classified;
+    }
+    structuredBrands.push(normalizeWooDraftBridgeText_(row[brandField]).trim());
+  }
+  if (!structuredBrands.length) {
+    classified.classification = 'unresolved';
+    classified.reason = 'structured_brand_missing';
+    return classified;
+  }
+  var distinctBrands = structuredBrands.filter(function(brand, brandIndex, allBrands) {
+    return allBrands.indexOf(brand) === brandIndex;
+  });
+  if (distinctBrands.length !== 1) {
+    classified.classification = 'unresolved';
+    classified.reason = 'structured_brand_conflict';
+    return classified;
+  }
+  if (WOO_DRAFT_BRIDGE_BRANDS_.indexOf(distinctBrands[0]) === -1) {
+    classified.classification = 'excluded';
+    classified.reason = 'unsupported_brand';
+    return classified;
+  }
   var condition = normalizeWooDraftBridgeText_(
     getWooDraftBridgeValue_(row, ['condition', 'itemCondition'])
   ).trim().replace(/\s+/g, ' ');
   var itemEvidence = normalizeWooDraftBridgeText_(
     title + ' ' + getWooDraftBridgeValue_(row, ['category'])
   );
-  var excluded = /\b(USED|PRE[ -]?OWNED|SECONDHAND|PARTS?|REPAIR|BAND|STRAP|BRACELET|ACCESSOR(?:Y|IES))\b|中古|部品|ベルト|バンド|アクセサリ/.test(condition + ' ' + itemEvidence);
-  var allowedNewConditions = ['NEW', 'BRAND NEW', 'UNUSED', 'NEW WITH TAGS', 'NEW WITHOUT TAGS', '新品', '未使用'];
-  var explicitlyNew = allowedNewConditions.indexOf(condition) !== -1;
+  var excluded = /\b(USED|PRE[ -]?OWNED|SECONDHAND|PARTS?|REPAIR|ACCESSOR(?:Y|IES))\b|中古|部品|アクセサリ/.test(condition + ' ' + itemEvidence);
+  var replacementAccessoryConflict = /\b(?:REPLACEMENT|REPLACE|SPARE)\b[^\r\n]*\b(?:BAND|STRAP|BRACELET)\b|\b(?:BAND|STRAP|BRACELET)\b[^\r\n]*\b(?:REPLACEMENT|REPLACE|SPARE)\b|交換[^\r\n]*(?:ベルト|バンド)|(?:ベルト|バンド)[^\r\n]*交換/.test(itemEvidence);
+  var explicitlyNew = WOO_DRAFT_BRIDGE_NEW_CONDITIONS_.indexOf(condition) !== -1;
 
-  if (brands.length !== 1 || excluded || !explicitlyNew) {
+  if (replacementAccessoryConflict) {
+    classified.classification = 'unresolved';
+    classified.reason = 'product_type_title_conflict';
+    return classified;
+  }
+  if (excluded || !explicitlyNew) {
     classified.classification = 'excluded';
-    classified.reason = brands.length !== 1 ? 'unsupported_or_ambiguous_brand' : (excluded ? 'not_a_new_watch' : 'new_condition_not_confirmed');
+    classified.reason = excluded ? 'not_a_new_watch' : 'new_condition_not_confirmed';
     return classified;
   }
 
@@ -171,7 +210,7 @@ function classifyWooDraftBridgeSource_(row, index) {
   }
 
   classified.classification = 'valid';
-  classified.brand = brands[0];
+  classified.brand = distinctBrands[0];
   classified.model = validModels[0];
   classified.modelKey = normalizeWooDraftBridgeModelKey_(validModels[0]);
   classified.productName = title;
@@ -253,6 +292,44 @@ function isWooDraftBridgeNamedReference_(value) {
 
 function hasWooDraftBridgeNamedReferences_(value) {
   return Array.isArray(value) && value.some(isWooDraftBridgeNamedReference_);
+}
+
+function isWooDraftBridgeSubstantiveString_(value) {
+  return isWooDraftBridgeNonBlankString_(value) && value.trim().length >= 2;
+}
+
+function hasWooDraftBridgeKeyFeatures_(value) {
+  if (isWooDraftBridgeSubstantiveString_(value)) return true;
+  return Array.isArray(value) && value.some(isWooDraftBridgeSubstantiveString_);
+}
+
+function getMissingWooDraftBridgeDescriptionFields_(row, source) {
+  var content = row && row.descriptionContent;
+  var missing = [];
+  var isObject = content && typeof content === 'object' && !Array.isArray(content);
+  var modelKey = isObject ? getValidWooDraftBridgeModelKey_(content.model) : '';
+  if (!modelKey || modelKey !== source.modelKey) missing.push('descriptionContent.model');
+  var brand = isObject && isWooDraftBridgeNonBlankString_(content.brand) ?
+    normalizeWooDraftBridgeText_(content.brand).trim() : '';
+  if (!brand || brand !== source.brand) missing.push('descriptionContent.brand');
+  if (!isObject || !isWooDraftBridgeSubstantiveString_(content.series)) missing.push('descriptionContent.series');
+  if (!isObject || !hasWooDraftBridgeKeyFeatures_(content.keyFeatures)) missing.push('descriptionContent.keyFeatures');
+  var condition = isObject && isWooDraftBridgeNonBlankString_(content.condition) ?
+    normalizeWooDraftBridgeText_(content.condition).trim().replace(/\s+/g, ' ') : '';
+  if (WOO_DRAFT_BRIDGE_NEW_CONDITIONS_.indexOf(condition) === -1) missing.push('descriptionContent.condition');
+  [
+    'japanDomesticModel',
+    'authenticFromJapan',
+    'freeInternationalShippingFromJapan',
+    'trackingAndCarefulPacking',
+    'customsBuyerResponsibility',
+    'buyerChecksModelSpecificationsSizeCompatibility',
+    'contactBeforeOrdering',
+    'humanConfirmationBeforePublish'
+  ].forEach(function(field) {
+    if (!isObject || content[field] !== true) missing.push('descriptionContent.' + field);
+  });
+  return missing;
 }
 
 function validateWooDraftBridgeProduct_(product, sourceModels) {
@@ -449,6 +526,8 @@ function buildWooDraftBridgePreview(sourceRows, wooProducts, options) {
     candidate.priceAlias = selectedPrice.alias;
     candidate.images = selectedImages.value;
     candidate.imagesAlias = selectedImages.alias;
+    candidate.descriptionContent = row && row.descriptionContent;
+    candidate.missingDescriptionFields = [];
     if (!source.productName) candidate.missingFields.push('productName');
     if (!selectedPrice.alias) {
       candidate.missingFields.push('price');
@@ -459,6 +538,8 @@ function buildWooDraftBridgePreview(sourceRows, wooProducts, options) {
       result.missingImages.push(candidate);
     }
     if (!isWooDraftBridgeNonBlankString_(row && row.description)) candidate.missingFields.push('description');
+    candidate.missingDescriptionFields = getMissingWooDraftBridgeDescriptionFields_(row, source);
+    candidate.missingFields = candidate.missingFields.concat(candidate.missingDescriptionFields);
     if (!hasWooDraftBridgeNamedReferences_(row && row.categories)) candidate.missingFields.push('categories');
     if (!hasWooDraftBridgeNamedReferences_(row && row.tags)) candidate.missingFields.push('tags');
     if (!isWooDraftBridgeNonBlankString_(row && row.stockPolicy)) candidate.missingFields.push('stockPolicy');

@@ -6,14 +6,35 @@ const fs = require('fs');
 const path = require('path');
 const bridge = require('../woo_draft_bridge.gs');
 
+function completeDescription(model, brand) {
+  return `Model ${model}. Brand ${brand}. Watch series and key features are stated. New and unused Japan domestic model (JDM). ` +
+    'Authentic product sourced from Japan. Free international shipping from Japan with tracking and careful packing. ' +
+    'Customs and import duties are the buyer responsibility where applicable. Before purchase, check the model number, ' +
+    'specifications, size, and compatibility. Contact the store before ordering with questions. ' +
+    'This draft requires human confirmation before publish.';
+}
+
 function sourceRow(overrides) {
-  return Object.assign({
+  const row = Object.assign({
     brand: 'CASIO', model: 'GBD-200-9JF', title: 'Casio GBD-200-9JF New Watch', condition: 'New',
     productType: 'WRISTWATCH',
-    price: '199', images: ['read-only-image-reference'], description: 'Needs human review',
+    price: '199', images: ['read-only-image-reference'],
     categories: ['Watches'], tags: ['JDM'], stockPolicy: 'Human confirmation required',
     shippingPolicy: 'Free international shipping from Japan with tracking'
   }, overrides || {});
+  if (!overrides || !Object.prototype.hasOwnProperty.call(overrides, 'description')) {
+    row.description = completeDescription(row.model, row.brand || row.maker);
+  }
+  if (!overrides || !Object.prototype.hasOwnProperty.call(overrides, 'descriptionContent')) {
+    row.descriptionContent = {
+      model: row.model, brand: row.brand || row.maker, series: 'Watch series', keyFeatures: ['Watch feature'], condition: row.condition,
+      japanDomesticModel: true, authenticFromJapan: true, freeInternationalShippingFromJapan: true,
+      trackingAndCarefulPacking: true, customsBuyerResponsibility: true,
+      buyerChecksModelSpecificationsSizeCompatibility: true, contactBeforeOrdering: true,
+      humanConfirmationBeforePublish: true
+    };
+  }
+  return row;
 }
 
 assert.strictEqual(bridge.normalizeWooDraftBridgeModelKey_(' ＧＢＤ－２００ ‐ ９ｊｆ '), 'GBD2009JF');
@@ -176,7 +197,9 @@ result = bridge.buildWooDraftBridgePreview([
   sourceRow({ title: 'Casio replacement band New' }),
   sourceRow({ title: 'Casio watch accessory New' })
 ], [], { wooFetchComplete: true });
-assert.strictEqual(result.excludedRows.length, 4);
+assert.strictEqual(result.excludedRows.length, 3);
+assert.strictEqual(result.unresolvedRows.length, 1);
+assert.strictEqual(result.unresolvedRows[0].reason, 'product_type_title_conflict');
 
 result = bridge.buildWooDraftBridgePreview([
   sourceRow({ productType: 'WRISTWATCH' }),
@@ -565,6 +588,103 @@ for (const fixture of validWooIdentities) {
   assert.strictEqual(result.existingWooProducts.length, 1, fixture.label);
   assert.strictEqual(result.accountingComplete, true, fixture.label);
 }
+
+for (const fixture of [
+  { model: 'AE-1200WH-1AV', name: 'Casio AE-1200WH-1AV 10-Year Battery Watch' },
+  { model: 'GBD-200-9JF', name: 'Casio GBD-200-9JF 200-Meter Water Resistant Watch' }
+]) {
+  const extractedKeys = bridge.extractWooDraftBridgeModels_(fixture.name).map(bridge.normalizeWooDraftBridgeModelKey_);
+  assert.deepStrictEqual(extractedKeys, [bridge.normalizeWooDraftBridgeModelKey_(fixture.model)], `${fixture.name} must ignore specification phrases`);
+  result = bridge.buildWooDraftBridgePreview(
+    [sourceRow({ model: fixture.model, title: fixture.name })],
+    [{ status: 'publish', name: fixture.name }],
+    { wooFetchComplete: true }
+  );
+  assert.deepStrictEqual(result.errors, [], fixture.name);
+  assert.strictEqual(result.existingWooProducts.length, 1, fixture.name);
+}
+for (const specificationPhrase of ['10-Year', '200-Meter', 'Battery-10-Year', 'Water-200-Meter']) {
+  assert.deepStrictEqual(bridge.extractWooDraftBridgeModels_(specificationPhrase), [], `${specificationPhrase} is not a watch model`);
+}
+
+for (const fixture of [
+  { label: 'unsupported brand must not be inferred from title', row: sourceRow({ brand: 'TIMEX', title: 'Casio GBD-200-9JF New Watch' }), classification: 'excludedRows', reason: 'unsupported_brand' },
+  { label: 'missing brand must not be inferred from title', row: sourceRow({ brand: '', title: 'Casio GBD-200-9JF New Watch' }), classification: 'unresolvedRows', reason: 'structured_brand_missing' },
+  { label: 'conflicting structured brands fail closed', row: sourceRow({ brand: 'CASIO', maker: 'SEIKO' }), classification: 'unresolvedRows', reason: 'structured_brand_conflict' }
+]) {
+  result = bridge.buildWooDraftBridgePreview([fixture.row], [], { wooFetchComplete: true });
+  assert.strictEqual(result[fixture.classification].length, 1, fixture.label);
+  assert.strictEqual(result[fixture.classification][0].reason, fixture.reason, fixture.label);
+  assert.strictEqual(result.newDraftCandidates.length, 0, fixture.label);
+  assert.strictEqual(result.accounting.length, 1, fixture.label);
+}
+const makerOnlyUnsupported = sourceRow({ maker: 'TIMEX', model: 'SBTR026', title: 'Seiko SBTR026 New Watch' });
+delete makerOnlyUnsupported.brand;
+makerOnlyUnsupported.descriptionContent.brand = 'TIMEX';
+result = bridge.buildWooDraftBridgePreview([makerOnlyUnsupported], [], { wooFetchComplete: true });
+assert.strictEqual(result.excludedRows.length, 1, 'unsupported maker must not be replaced by title evidence');
+assert.strictEqual(result.excludedRows[0].reason, 'unsupported_brand');
+result = bridge.buildWooDraftBridgePreview([sourceRow({ title: 'GBD-200-9JF New Wristwatch' })], [], { wooFetchComplete: true });
+assert.strictEqual(result.newDraftCandidates.length, 1, 'structured supported brand is sufficient without title brand text');
+result = bridge.buildWooDraftBridgePreview([sourceRow({ brand: 'ＣＡＳＩＯ', maker: 'CASIO', title: 'GBD-200-9JF New Wristwatch' })], [], { wooFetchComplete: true });
+assert.strictEqual(result.newDraftCandidates.length, 1, 'equivalent structured brand aliases are accepted after NFKC');
+for (const invalidBrand of [null, true, 123, [], {}]) {
+  result = bridge.buildWooDraftBridgePreview([sourceRow({ brand: invalidBrand })], [], { wooFetchComplete: true });
+  assert.strictEqual(result.unresolvedRows.length, 1, `invalid structured brand ${typeof invalidBrand}`);
+  assert.strictEqual(result.unresolvedRows[0].reason, 'structured_brand_invalid');
+}
+
+for (const title of ['Casio GBD-200-9JF Resin Band New Watch', 'Stainless Steel Bracelet Watch']) {
+  result = bridge.buildWooDraftBridgePreview([sourceRow({ title })], [], { wooFetchComplete: true });
+  assert.strictEqual(result.newDraftCandidates.length, 1, `${title} is a wristwatch, not an accessory`);
+}
+result = bridge.buildWooDraftBridgePreview([sourceRow({ title: 'Replacement Strap', productType: 'WRISTWATCH' })], [], { wooFetchComplete: true });
+assert.strictEqual(result.unresolvedRows.length, 1);
+assert.strictEqual(result.unresolvedRows[0].reason, 'product_type_title_conflict');
+result = bridge.buildWooDraftBridgePreview([sourceRow({ title: 'Replacement Strap', productType: 'ACCESSORY' })], [], { wooFetchComplete: true });
+assert.strictEqual(result.excludedRows.length, 1);
+assert.strictEqual(result.excludedRows[0].reason, 'non_wristwatch_product_type');
+
+for (const description of ['x', 'Needs human review']) {
+  result = bridge.buildWooDraftBridgePreview([sourceRow({ description, descriptionContent: undefined })], [], { wooFetchComplete: true });
+  assert.strictEqual(result.unresolvedRows.length, 1, `${description} alone is incomplete`);
+  assert.strictEqual(result.newDraftCandidates.length, 0, description);
+  assert.strictEqual(result.firstFiveCandidates.length, 0, description);
+  assert.ok(result.unresolvedRows[0].missingDescriptionFields.length > 0, description);
+}
+
+const descriptionMissingCases = [
+  ['model', 'WRONG-100'],
+  ['brand', 'SEIKO'],
+  ['series', '   '],
+  ['series', 'x'],
+  ['keyFeatures', ['']],
+  ['keyFeatures', ['x']],
+  ['condition', 'Used'],
+  ['japanDomesticModel', false],
+  ['authenticFromJapan', false],
+  ['freeInternationalShippingFromJapan', false],
+  ['trackingAndCarefulPacking', false],
+  ['customsBuyerResponsibility', false],
+  ['buyerChecksModelSpecificationsSizeCompatibility', false],
+  ['contactBeforeOrdering', false],
+  ['humanConfirmationBeforePublish', false]
+];
+for (const [field, invalidValue] of descriptionMissingCases) {
+  const row = sourceRow();
+  row.descriptionContent = Object.assign({}, row.descriptionContent, { [field]: invalidValue });
+  const before = JSON.stringify(row);
+  result = bridge.buildWooDraftBridgePreview([row], [], { wooFetchComplete: true });
+  assert.strictEqual(result.unresolvedRows.length, 1, field);
+  assert.ok(result.unresolvedRows[0].missingDescriptionFields.includes(`descriptionContent.${field}`), field);
+  assert.strictEqual(result.newDraftCandidates.length, 0, field);
+  assert.strictEqual(result.firstFiveCandidates.length, 0, field);
+  assert.strictEqual(result.accountingComplete, true, field);
+  assert.strictEqual(JSON.stringify(row), before, `${field} input must not be changed`);
+}
+result = bridge.buildWooDraftBridgePreview([sourceRow()], [], { wooFetchComplete: true });
+assert.strictEqual(result.newDraftCandidates.length, 1, 'complete description content is eligible');
+assert.deepStrictEqual(result.newDraftCandidates[0].missingDescriptionFields, []);
 
 const sparseWoo = new Array(1);
 result = bridge.buildWooDraftBridgePreview([sourceRow()], sparseWoo, { wooFetchComplete: true });
