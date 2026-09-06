@@ -51,6 +51,64 @@ for (const [name, model] of nonMatches) {
   assert.strictEqual(bridge.wooDraftBridgeNameHasExactModel_(name, model), false, `${model} must not partially match ${name}`);
 }
 
+const rejectedInternalModelNames = [
+  'XABCDEFGHI123Y',
+  'PREFIXABC123456XYZ',
+  'LONGPREFIXSBTR026TAIL'
+];
+for (const name of rejectedInternalModelNames) {
+  assert.deepStrictEqual(bridge.extractWooDraftBridgeModels_(name), [], `${name} must not yield an internal model`);
+  const wooInput = [{ status: 'publish', name }];
+  const wooBefore = JSON.stringify(wooInput);
+  const rejected = bridge.buildWooDraftBridgePreview([sourceRow()], wooInput, { wooFetchComplete: true });
+  assert.ok(rejected.errors.some(error => error.includes('wooProducts[0]')), `${name} must invalidate the Woo snapshot`);
+  assert.strictEqual(rejected.readyForDraftSelection, false, name);
+  assert.deepStrictEqual(rejected.firstFiveCandidates, [], name);
+  assert.strictEqual(rejected.accountingComplete, true, name);
+  assert.strictEqual(JSON.stringify(wooInput), wooBefore, `${name} input must not be changed`);
+}
+
+for (const name of ['XSBTR026', 'SBTR026Y', 'XSBTR026Y', 'PREFIXSBTR026SUFFIX']) {
+  const extractedKeys = bridge.extractWooDraftBridgeModels_(name).map(bridge.normalizeWooDraftBridgeModelKey_);
+  assert.strictEqual(extractedKeys.includes('SBTR026'), false, `${name} must not yield the embedded SBTR026 model`);
+  assert.strictEqual(bridge.wooDraftBridgeNameHasExactModel_(name, 'SBTR026'), false, `${name} must not match embedded SBTR026`);
+}
+
+const boundedExtractionFixtures = [
+  ['Casio GBD-200-9JF Wristwatch', 'GBD-200-9JF'],
+  ['Casio GBD2009JF Wristwatch', 'GBD2009JF'],
+  ['Casio GBD 200 9JF Wristwatch', 'GBD-200-9JF'],
+  ['Seiko SBTR026 Watch', 'SBTR026'],
+  ['Seiko SBTR-026 Watch', 'SBTR-026'],
+  ['Citizen NB1050-59E Wristwatch', 'NB1050-59E'],
+  ['(SBTR026)', 'SBTR026'],
+  ['[GBD-200-9JF]', 'GBD-200-9JF'],
+  ['型番SBTR026腕時計', 'SBTR026'],
+  ['SBTR026 at start', 'SBTR026'],
+  ['at end SBTR026', 'SBTR026'],
+  ['Casio GBD\u2011200\u20119JF Wristwatch', 'GBD-200-9JF']
+];
+for (const [name, expectedModel] of boundedExtractionFixtures) {
+  const extracted = bridge.extractWooDraftBridgeModels_(name);
+  assert.ok(extracted.some(model => bridge.normalizeWooDraftBridgeModelKey_(model) === bridge.normalizeWooDraftBridgeModelKey_(expectedModel)), `${name} must yield ${expectedModel}`);
+  for (const model of extracted) {
+    assert.strictEqual(bridge.wooDraftBridgeNameHasExactModel_(name, model), true, `validator/matcher invariant for ${name} / ${model}`);
+  }
+}
+
+for (const name of ['Seiko SBTR026 / SBTR037 Watch', 'Seiko SBTR026, SBTR037 Watch', '(SBTR026) [SBTR037]']) {
+  const extracted = bridge.extractWooDraftBridgeModels_(name);
+  assert.deepStrictEqual(extracted.map(bridge.normalizeWooDraftBridgeModelKey_).sort(), ['SBTR026', 'SBTR037'], `${name} must yield two models`);
+  const ambiguous = bridge.buildWooDraftBridgePreview([sourceRow()], [{ status: 'publish', name }], { wooFetchComplete: true });
+  assert.ok(ambiguous.errors.some(error => error.includes('conflicting or ambiguous')), `${name} must fail closed`);
+}
+
+const sourceBoundaryResult = bridge.buildWooDraftBridgePreview([
+  sourceRow({ model: '', title: 'LONGPREFIXSBTR026TAIL', brand: 'SEIKO' })
+], [], { wooFetchComplete: true });
+assert.strictEqual(sourceBoundaryResult.invalidModels.length, 1, 'source title must not yield an internal model');
+assert.strictEqual(sourceBoundaryResult.accountingComplete, true);
+
 let result = bridge.buildWooDraftBridgePreview(
   [sourceRow()],
   [{ id: 1, status: 'publish', sku: 'GBD-200-9JF', name: 'Unrelated name' }],

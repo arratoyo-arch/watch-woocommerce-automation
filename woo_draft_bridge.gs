@@ -68,7 +68,12 @@ function uniqueWooDraftBridgeModels_(models) {
 
 function extractWooDraftBridgeModels_(value) {
   var text = normalizeWooDraftBridgeText_(value);
-  var tokens = text.match(/[A-Z0-9]+(?:-[A-Z0-9]+)+|[A-Z]{1,8}[0-9][A-Z0-9]{2,}/g) || [];
+  var tokenPattern = /(^|[^A-Z0-9])([A-Z0-9]+(?:-[A-Z0-9]+)+|[A-Z]{1,8}(?:\s+[A-Z0-9]*[0-9][A-Z0-9]*){2,}|[A-Z]{1,8}[0-9][A-Z0-9]{2,})(?=$|[^A-Z0-9])/g;
+  var tokens = [];
+  var match;
+  while ((match = tokenPattern.exec(text)) !== null) {
+    tokens.push(match[2]);
+  }
   return uniqueWooDraftBridgeModels_(tokens.map(function(token) {
     return token.trim().replace(/[\s-]+/g, '-');
   }).filter(function(token) {
