@@ -1,0 +1,6 @@
+interface:
+  display_name: "eBay商品をWooへコピー"
+  short_description: "eBayを主系としてWooCommerceへ商品を段階コピー"
+  default_prompt: "Use $copy-ebay-products-to-woo to keep eBay as the main system and prepare a reviewed WooCommerce draft-copy batch from Active_listing."
+policy:
+  allow_implicit_invocation: true
