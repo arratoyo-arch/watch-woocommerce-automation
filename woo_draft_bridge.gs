@@ -244,6 +244,48 @@ function hasWooDraftBridgeNamedReferences_(value) {
   return Array.isArray(value) && value.some(isWooDraftBridgeNamedReference_);
 }
 
+function validateWooDraftBridgeProduct_(product) {
+  if (product === null) return 'must be a non-null object';
+  if (typeof product !== 'object') return 'must be an object';
+  if (Array.isArray(product)) return 'must not be an array';
+
+  if (!isWooDraftBridgeNonBlankString_(product.status)) return 'status must be a non-blank string';
+  var status = product.status.trim().toLowerCase();
+  if (WOO_DRAFT_BRIDGE_EXISTING_STATUSES_.indexOf(status) === -1) {
+    return 'status must be publish, draft, or pending';
+  }
+
+  var hasIdentity = false;
+  if (Object.prototype.hasOwnProperty.call(product, 'sku') && product.sku !== '') {
+    if (!isWooDraftBridgeNonBlankString_(product.sku)) return 'sku must be a non-blank string when provided';
+    hasIdentity = true;
+  }
+  if (Object.prototype.hasOwnProperty.call(product, 'name') && product.name !== '') {
+    if (!isWooDraftBridgeNonBlankString_(product.name)) return 'name must be a non-blank string when provided';
+    hasIdentity = true;
+  }
+
+  var modelFields = ['model', 'modelNumber', 'model_number'];
+  for (var i = 0; i < modelFields.length; i++) {
+    var field = modelFields[i];
+    var value = product[field];
+    if (!Object.prototype.hasOwnProperty.call(product, field) || value === '') continue;
+    if (typeof value === 'string') {
+      if (!value.trim()) return field + ' must be non-blank when provided';
+      hasIdentity = true;
+      continue;
+    }
+    if (!Array.isArray(value) || value.length === 0) return field + ' must be a string or a non-empty string array';
+    for (var j = 0; j < value.length; j++) {
+      if (!Object.prototype.hasOwnProperty.call(value, j) || !isWooDraftBridgeNonBlankString_(value[j])) {
+        return field + ' must contain only non-blank strings';
+      }
+    }
+    hasIdentity = true;
+  }
+  return hasIdentity ? '' : 'must include sku, model, modelNumber, model_number, or name identification';
+}
+
 function buildWooDraftBridgePreview(sourceRows, wooProducts, options) {
   var rows = Array.isArray(sourceRows) ? sourceRows : [];
   var products = Array.isArray(wooProducts) ? wooProducts : [];
@@ -274,8 +316,24 @@ function buildWooDraftBridgePreview(sourceRows, wooProducts, options) {
   if (settings.wooFetchComplete !== true) result.errors.push('Woo product retrieval is not confirmed complete.');
   if (settings.wooFetchError) result.errors.push('Woo product retrieval error: ' + String(settings.wooFetchError));
 
-  var relevantProducts = products.filter(function(product) {
-    return WOO_DRAFT_BRIDGE_EXISTING_STATUSES_.indexOf(String(product && product.status || '').toLowerCase()) !== -1;
+  var wooSnapshotValid = Array.isArray(wooProducts);
+  if (wooSnapshotValid) {
+    for (var productIndex = 0; productIndex < products.length; productIndex++) {
+      if (!Object.prototype.hasOwnProperty.call(products, productIndex)) {
+        result.errors.push('wooProducts[' + productIndex + '] is missing (sparse array).');
+        wooSnapshotValid = false;
+        continue;
+      }
+      var productError = validateWooDraftBridgeProduct_(products[productIndex]);
+      if (productError) {
+        result.errors.push('wooProducts[' + productIndex + '] ' + productError + '.');
+        wooSnapshotValid = false;
+      }
+    }
+  }
+
+  var relevantProducts = (wooSnapshotValid ? products : []).filter(function(product) {
+    return WOO_DRAFT_BRIDGE_EXISTING_STATUSES_.indexOf(String(product && product.status || '').trim().toLowerCase()) !== -1;
   });
   var firstByModel = {};
 

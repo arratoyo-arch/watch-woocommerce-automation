@@ -401,6 +401,105 @@ assert.strictEqual(result.firstFiveCandidates.length, 0);
 result = bridge.buildWooDraftBridgePreview([sourceRow()], [], { wooFetchComplete: true, wooFetchError: 'timeout' });
 assert.strictEqual(result.readyForDraftSelection, false);
 
+const invalidWooElements = [
+  { label: 'explicit undefined', value: undefined },
+  { label: 'null', value: null },
+  { label: 'string', value: 'product' },
+  { label: 'number', value: 10 },
+  { label: 'boolean', value: true },
+  { label: 'array', value: [] },
+  { label: 'empty object', value: {} },
+  { label: 'missing status', value: { sku: 'GBD-200-9JF' } },
+  { label: 'invalid status type', value: { status: 10, sku: 'GBD-200-9JF' } },
+  { label: 'unsupported status', value: { status: 'private', sku: 'GBD-200-9JF' } },
+  { label: 'missing identity', value: { status: 'publish' } },
+  { label: 'invalid sku type', value: { status: 'publish', sku: 123 } },
+  { label: 'null sku', value: { status: 'publish', sku: null, name: 'Casio GBD-200-9JF' } },
+  { label: 'invalid name type', value: { status: 'publish', name: {} } },
+  { label: 'undefined name', value: { status: 'publish', name: undefined, sku: 'GBD-200-9JF' } },
+  { label: 'null model', value: { status: 'publish', model: null, name: 'Casio GBD-200-9JF' } },
+  { label: 'invalid model array', value: { status: 'publish', model: [null] } }
+];
+for (const fixture of invalidWooElements) {
+  const wooInput = [fixture.value];
+  const sourceInput = [sourceRow()];
+  const sourceBefore = JSON.stringify(sourceInput);
+  const wooValueBefore = fixture.value && typeof fixture.value === 'object' ? JSON.stringify(fixture.value) : fixture.value;
+  result = bridge.buildWooDraftBridgePreview(sourceInput, wooInput, { wooFetchComplete: true });
+  assert.strictEqual(result.readyForDraftSelection, false, fixture.label);
+  assert.strictEqual(result.firstFiveCandidates.length, 0, fixture.label);
+  assert.ok(result.errors.some(error => error.includes('wooProducts[0]')), fixture.label);
+  assert.strictEqual(result.accounting.length, 1, fixture.label);
+  assert.strictEqual(result.accountingComplete, true, fixture.label);
+  assert.strictEqual(JSON.stringify(sourceInput), sourceBefore, fixture.label);
+  if (fixture.value && typeof fixture.value === 'object') {
+    assert.strictEqual(JSON.stringify(fixture.value), wooValueBefore, fixture.label);
+  } else {
+    assert.strictEqual(wooInput[0], fixture.value, fixture.label);
+  }
+}
+
+const sparseWoo = new Array(1);
+result = bridge.buildWooDraftBridgePreview([sourceRow()], sparseWoo, { wooFetchComplete: true });
+assert.strictEqual(result.readyForDraftSelection, false);
+assert.strictEqual(result.firstFiveCandidates.length, 0);
+assert.ok(result.errors.some(error => error.includes('wooProducts[0]') && error.includes('sparse')));
+assert.strictEqual(result.accounting.length, 1);
+assert.strictEqual(result.accountingComplete, true);
+assert.strictEqual(Object.prototype.hasOwnProperty.call(sparseWoo, 0), false);
+
+const middleSparseWoo = [
+  { status: 'publish', sku: 'GBD-200-1JF' },
+  { status: 'draft', sku: 'GBD-200-2JF' },
+  { status: 'pending', sku: 'GBD-200-3JF' }
+];
+delete middleSparseWoo[1];
+result = bridge.buildWooDraftBridgePreview([sourceRow()], middleSparseWoo, { wooFetchComplete: true });
+assert.strictEqual(result.readyForDraftSelection, false);
+assert.strictEqual(result.firstFiveCandidates.length, 0);
+assert.ok(result.errors.some(error => error.includes('wooProducts[1]') && error.includes('sparse')));
+assert.strictEqual(result.accounting.length, 1);
+assert.strictEqual(result.accountingComplete, true);
+assert.strictEqual(Object.prototype.hasOwnProperty.call(middleSparseWoo, 1), false);
+
+const mixedWoo = [
+  { status: 'publish', sku: 'GBD-200-9JF' },
+  null,
+  { status: 'draft', sku: 'GBD-200-1JF' }
+];
+const mixedWooBefore = JSON.stringify(mixedWoo);
+result = bridge.buildWooDraftBridgePreview([sourceRow()], mixedWoo, { wooFetchComplete: true });
+assert.strictEqual(result.readyForDraftSelection, false);
+assert.strictEqual(result.firstFiveCandidates.length, 0);
+assert.ok(result.errors.some(error => error.includes('wooProducts[1]')));
+assert.strictEqual(result.accounting.length, 1);
+assert.strictEqual(result.accountingComplete, true);
+assert.strictEqual(JSON.stringify(mixedWoo), mixedWooBefore);
+
+result = bridge.buildWooDraftBridgePreview([
+  sourceRow({ model: 'GBD-200-1JF', title: 'Casio GBD-200-1JF Watch' }),
+  sourceRow({ model: 'GBD-200-2JF', title: 'Casio GBD-200-2JF Watch' }),
+  sourceRow({ model: 'GBD-200-3JF', title: 'Casio GBD-200-3JF Watch' })
+], [null], { wooFetchComplete: true });
+assert.strictEqual(result.readyForDraftSelection, false);
+assert.strictEqual(result.firstFiveCandidates.length, 0);
+assert.strictEqual(result.accounting.length, 3);
+assert.strictEqual(result.accountingComplete, true);
+
+result = bridge.buildWooDraftBridgePreview([sourceRow()], [], { wooFetchComplete: true });
+assert.strictEqual(result.errors.length, 0, 'a confirmed complete empty Woo snapshot is valid');
+assert.strictEqual(result.readyForDraftSelection, true);
+assert.strictEqual(result.newDraftCandidates.length, 1);
+
+for (const status of ['publish', 'draft', 'pending']) {
+  const wooProduct = { id: status, status, sku: 'GBD-200-9JF', name: '' };
+  const wooBefore = JSON.stringify(wooProduct);
+  result = bridge.buildWooDraftBridgePreview([sourceRow()], [wooProduct], { wooFetchComplete: true });
+  assert.strictEqual(result.errors.length, 0, status);
+  assert.strictEqual(result.existingWooProducts.length, 1, status);
+  assert.strictEqual(JSON.stringify(wooProduct), wooBefore, status);
+}
+
 const fixtureCount = 550;
 const largeFixture = Array.from({ length: fixtureCount }, (_, index) => sourceRow({
   brand: 'SEIKO', model: `SBTR${String(index + 100).padStart(3, '0')}`,

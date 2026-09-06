@@ -254,7 +254,7 @@ Please confirm the product images, model number, and specifications before purch
 
 ### Preview-only Woo Draft Bridge
 
-`buildWooDraftBridgePreview(sourceRows, wooProducts, options)` は純粋なPreview builderです。APIやSpreadsheetを呼ばず、商品作成・更新・Publishも行いません。呼び出し側がWoo商品の `publish`、`draft`、`pending` を完全取得できた場合だけ `options.wooFetchComplete: true` を指定します。取得不完全、warnings/errorsあり、または全入力行のaccounting不一致の場合はfail-closedとなり、`readyForDraftSelection` は `false`、`firstFiveCandidates` は空になります。
+`buildWooDraftBridgePreview(sourceRows, wooProducts, options)` は純粋なPreview builderです。APIやSpreadsheetを呼ばず、商品作成・更新・Publishも行いません。呼び出し側がWoo商品の `publish`、`draft`、`pending` を完全取得できた場合だけ `options.wooFetchComplete: true` を指定します。`wooProducts` は密な配列で、各要素が非nullの非配列object、`status` が `publish` / `draft` / `pending` のいずれか、かつ `sku`、`model`、`modelNumber`、`model_number`、`name` の少なくとも1つに非空の識別情報を持つ必要があります。既知フィールドの異常型、疎要素、null、primitive、配列要素、識別情報のないobjectはindexと理由をerrorsへ記録し、スナップショット全体を不完全として照合に使用しません。正常な空配列は完全取得結果として許可します。取得不完全、warnings/errorsあり、または全入力行のaccounting不一致の場合はfail-closedとなり、`readyForDraftSelection` は `false`、`firstFiveCandidates` は空になります。
 
 各入力行は `newDraftCandidates`、`existingWooProducts`、`duplicates`、`excludedRows`、`invalidModels`、`unresolvedRows` のいずれか1つに分類されます。中立的なsource rowには、信頼できる商品種別証拠から呼び出し側が設定した構造化フィールド `productType` が必須です。NFKC・大文字化・trim後の完全一致で `WRISTWATCH` または `腕時計` だけを安全な腕時計として許可します。`CALCULATOR`、`CLOCK`、`ACCESSORY`など明示的な非腕時計値は `excludedRows`、空欄や未知値は理由付きで `unresolvedRows` に入ります。title、categories、モデル番号、ブランド名だけから腕時計とは推測しません。
 
