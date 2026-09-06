@@ -40,6 +40,14 @@ function getWooDraftBridgeStringValue_(row, names) {
   return '';
 }
 
+function getValidatedWooDraftBridgeValue_(row, names, validator) {
+  for (var i = 0; i < names.length; i++) {
+    var value = row && row[names[i]];
+    if (validator(value)) return { value: value, alias: names[i] };
+  }
+  return { value: '', alias: '' };
+}
+
 function uniqueWooDraftBridgeModels_(models) {
   var seen = {};
   return models.filter(function(model) {
@@ -83,7 +91,10 @@ function wooDraftBridgeNameHasExactModel_(name, model) {
   var segments = normalizedModel.split(/[\s-]+/).filter(Boolean);
   if (!segments.length || segments.some(function(segment) { return !/^[A-Z0-9]+$/.test(segment); })) return false;
   var pattern = segments.map(escapeWooDraftBridgeRegex_).join('[\\s-]+');
-  return new RegExp('(^|[^A-Z0-9])' + pattern + '($|[^A-Z0-9])').test(normalizedName);
+  if (new RegExp('(^|[^A-Z0-9])' + pattern + '($|[^A-Z0-9])').test(normalizedName)) return true;
+  var modelKey = normalizeWooDraftBridgeModelKey_(model);
+  var separatorVariantPattern = modelKey.split('').map(escapeWooDraftBridgeRegex_).join('[\\s-]*');
+  return new RegExp('(^|[^A-Z0-9])' + separatorVariantPattern + '($|[^A-Z0-9])').test(normalizedName);
 }
 
 function classifyWooDraftBridgeSource_(row, index) {
@@ -286,14 +297,6 @@ function buildWooDraftBridgePreview(sourceRows, wooProducts, options) {
       return;
     }
 
-    if (!source.productName) {
-      source.reason = 'required_candidate_fields_missing';
-      source.missingFields = ['productName'];
-      result.unresolvedRows.push(source);
-      result.accounting.push({ sourceIndex: index, classification: 'unresolvedRows' });
-      return;
-    }
-
     result.validNewWatchRows.push(source);
     if (firstByModel[source.modelKey]) {
       source.firstSourceIndex = firstByModel[source.modelKey].sourceIndex;
@@ -349,13 +352,18 @@ function buildWooDraftBridgePreview(sourceRows, wooProducts, options) {
       source: row,
       missingFields: []
     };
-    var price = getWooDraftBridgeValue_(row, ['price', 'regularPrice', 'regular_price']);
-    var images = getWooDraftBridgeValue_(row, ['images', 'imageUrls', 'image_urls', 'image']);
-    if (!isWooDraftBridgePositivePrice_(price)) {
+    var selectedPrice = getValidatedWooDraftBridgeValue_(row, ['price', 'regularPrice', 'regular_price'], isWooDraftBridgePositivePrice_);
+    var selectedImages = getValidatedWooDraftBridgeValue_(row, ['images', 'imageUrls', 'image_urls', 'image'], hasWooDraftBridgeImages_);
+    candidate.price = selectedPrice.value;
+    candidate.priceAlias = selectedPrice.alias;
+    candidate.images = selectedImages.value;
+    candidate.imagesAlias = selectedImages.alias;
+    if (!source.productName) candidate.missingFields.push('productName');
+    if (!selectedPrice.alias) {
       candidate.missingFields.push('price');
       result.missingPrices.push(candidate);
     }
-    if (!hasWooDraftBridgeImages_(images)) {
+    if (!selectedImages.alias) {
       candidate.missingFields.push('images');
       result.missingImages.push(candidate);
     }

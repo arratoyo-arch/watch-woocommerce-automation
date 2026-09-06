@@ -25,11 +25,26 @@ for (const model of matchingModels) {
 assert.strictEqual(bridge.wooDraftBridgeNameHasExactModel_('ＣＡＳＩＯ ＧＢＤ－２００—９ＪＦ New Watch', 'GBD-200-9JF'), true);
 assert.strictEqual(bridge.wooDraftBridgeNameHasExactModel_('Casio GBD 200 9JF New Watch', 'GBD-200-9JF'), true);
 
+const separatorVariantMatches = [
+  ['Seiko SBTR-026 Watch', 'SBTR026'],
+  ['Seiko SBTR026 Watch', 'SBTR-026'],
+  ['Casio GBD2009JF Watch', 'GBD-200-9JF'],
+  ['Casio GBD-200-9JF Watch', 'GBD2009JF'],
+  ['Casio GBD 200 9JF Watch', 'GBD-200-9JF'],
+  ['Casio GBD 200 9JF Watch', 'GBD2009JF'],
+  ['ＣＡＳＩＯ ＧＢＤ―２００‐９ＪＦ Watch', 'GBD-200-9JF']
+];
+for (const [name, model] of separatorVariantMatches) {
+  assert.strictEqual(bridge.wooDraftBridgeNameHasExactModel_(name, model), true, `${model} separator variant in ${name}`);
+}
+
 const nonMatches = [
   ['DW-5600E-1JF', 'DW-5600-1JF'],
   ['SHS-4529D-7AJF', 'SHS-4529D-7AJ'],
   ['BGD-5650-1JF', 'BGD-565'],
   ['RN-AA0002L', 'RN-AA0002'],
+  ['ABC123456', 'ABC123'],
+  ['XABC123Y', 'ABC123'],
   ['Description reference ABC123456789XYZ', 'ABC123']
 ];
 for (const [name, model] of nonMatches) {
@@ -59,6 +74,28 @@ result = bridge.buildWooDraftBridgePreview(
   { wooFetchComplete: true }
 );
 assert.strictEqual(result.newDraftCandidates.length, 1, 'similar model remains a new candidate');
+
+for (const [sourceModel, wooName] of [
+  ['SBTR026', 'Seiko SBTR-026 Watch'],
+  ['SBTR-026', 'Seiko SBTR026 Watch'],
+  ['GBD-200-9JF', 'Casio GBD2009JF Watch'],
+  ['GBD2009JF', 'Casio GBD-200-9JF Watch']
+]) {
+  result = bridge.buildWooDraftBridgePreview(
+    [sourceRow({ model: sourceModel, title: `Watch ${sourceModel}` })],
+    [{ id: wooName, status: 'publish', sku: '', name: wooName }],
+    { wooFetchComplete: true }
+  );
+  assert.strictEqual(result.existingWooProducts.length, 1, `${sourceModel} must match ${wooName}`);
+  assert.strictEqual(result.existingWooProducts[0].matchMethod, 'name');
+}
+
+result = bridge.buildWooDraftBridgePreview([sourceRow()], [
+  { id: 'multi-name-models', status: 'publish', sku: '', name: 'Casio GBD2009JF alternative GBD-200-1JF' }
+], { wooFetchComplete: true });
+assert.strictEqual(result.unresolvedRows[0].reason, 'woo_identity_conflict');
+assert.ok(result.unresolvedRows[0].matchedProducts[0].conflicts.includes('multiple_name_model_values'));
+assert.strictEqual(result.readyForDraftSelection, false);
 
 result = bridge.buildWooDraftBridgePreview([
   sourceRow({ sourceRowNumber: 10 }),
@@ -110,6 +147,78 @@ assert.deepStrictEqual(result.unresolvedRows.map(item => item.reason), ['product
 assert.strictEqual(result.newDraftCandidates.length, 0);
 assert.strictEqual(result.accounting.length, 4);
 assert.strictEqual(result.accountingComplete, true);
+
+for (const [wooProduct, expectedMethod] of [
+  [{ id: 'missing-name-sku', status: 'publish', sku: 'GBD-200-9JF', name: '' }, 'sku'],
+  [{ id: 'missing-name-model', status: 'publish', sku: '', model: 'GBD-200-9JF', name: '' }, 'model']
+]) {
+  result = bridge.buildWooDraftBridgePreview(
+    [sourceRow({ title: '', name: '', productName: '' })],
+    [wooProduct],
+    { wooFetchComplete: true }
+  );
+  assert.strictEqual(result.existingWooProducts.length, 1);
+  assert.strictEqual(result.existingWooProducts[0].matchMethod, expectedMethod);
+  assert.strictEqual(result.validNewWatchRows.length, 1);
+  assert.strictEqual(result.uniqueModels.length, 1);
+  assert.deepStrictEqual(result.accounting, [{ sourceIndex: 0, classification: 'existingWooProducts' }]);
+}
+
+result = bridge.buildWooDraftBridgePreview(
+  [sourceRow({ title: '', name: '', productName: '' })], [], { wooFetchComplete: true }
+);
+assert.strictEqual(result.unresolvedRows.length, 1);
+assert.ok(result.unresolvedRows[0].missingFields.includes('productName'));
+assert.strictEqual(result.validNewWatchRows.length, 1);
+assert.strictEqual(result.uniqueModels.length, 1);
+assert.deepStrictEqual(result.accounting, [{ sourceIndex: 0, classification: 'unresolvedRows' }]);
+
+result = bridge.buildWooDraftBridgePreview(
+  [sourceRow({ title: '', name: '', productName: '', description: '' })],
+  [{ id: 'missing-other-fields', status: 'publish', sku: '', model: 'GBD-200-9JF', name: '' }],
+  { wooFetchComplete: true }
+);
+assert.strictEqual(result.existingWooProducts.length, 1);
+assert.strictEqual(result.unresolvedRows.length, 0);
+
+result = bridge.buildWooDraftBridgePreview(
+  [sourceRow({ title: '', name: '', productName: '' })],
+  [
+    { id: 'missing-name-first', status: 'publish', sku: 'GBD-200-9JF', name: '' },
+    { id: 'missing-name-second', status: 'draft', sku: 'GBD-200-9JF', name: '' }
+  ],
+  { wooFetchComplete: true }
+);
+assert.strictEqual(result.unresolvedRows[0].reason, 'multiple_woo_product_matches');
+assert.strictEqual(result.readyForDraftSelection, false);
+assert.strictEqual(result.accounting.length, 1);
+
+const aliasFixtures = [
+  { overrides: { price: ' ', regularPrice: '100' }, priceAlias: 'regularPrice' },
+  { overrides: { price: '0x10', regularPrice: '100' }, priceAlias: 'regularPrice' },
+  { overrides: { price: 0, regular_price: '100' }, priceAlias: 'regular_price' },
+  { overrides: { price: '200', regularPrice: '100' }, priceAlias: 'price' },
+  { overrides: { images: [], imageUrls: ['valid-image'] }, imagesAlias: 'imageUrls' },
+  { overrides: { images: [''], image_urls: ['valid-image'] }, imagesAlias: 'image_urls' },
+  { overrides: { images: [{}], image: 'valid-image' }, imagesAlias: 'image' },
+  { overrides: { images: ['first-image'], imageUrls: ['second-image'] }, imagesAlias: 'images' }
+];
+for (const fixture of aliasFixtures) {
+  result = bridge.buildWooDraftBridgePreview([sourceRow(fixture.overrides)], [], { wooFetchComplete: true });
+  assert.strictEqual(result.newDraftCandidates.length, 1, JSON.stringify(fixture.overrides));
+  if (fixture.priceAlias) assert.strictEqual(result.newDraftCandidates[0].priceAlias, fixture.priceAlias);
+  if (fixture.imagesAlias) assert.strictEqual(result.newDraftCandidates[0].imagesAlias, fixture.imagesAlias);
+  assert.strictEqual(result.accountingComplete, true);
+}
+
+result = bridge.buildWooDraftBridgePreview([sourceRow({
+  price: ' ', regularPrice: '0x10', regular_price: 0,
+  images: [], imageUrls: [''], image_urls: [{}], image: null
+})], [], { wooFetchComplete: true });
+assert.deepStrictEqual(result.unresolvedRows[0].missingFields.slice(0, 2), ['price', 'images']);
+assert.strictEqual(result.missingPrices.length, 1);
+assert.strictEqual(result.missingImages.length, 1);
+assert.strictEqual(result.accounting.length, 1);
 
 for (const price of ['10', '10.50', '0.01', ' 199.99 ', '１９９．９９']) {
   result = bridge.buildWooDraftBridgePreview([sourceRow({ price })], [], { wooFetchComplete: true });
