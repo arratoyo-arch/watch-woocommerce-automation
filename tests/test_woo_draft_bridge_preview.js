@@ -93,9 +93,9 @@ for (const [sourceModel, wooName] of [
 result = bridge.buildWooDraftBridgePreview([sourceRow()], [
   { id: 'multi-name-models', status: 'publish', sku: '', name: 'Casio GBD2009JF alternative GBD-200-1JF' }
 ], { wooFetchComplete: true });
-assert.strictEqual(result.unresolvedRows[0].reason, 'woo_identity_conflict');
-assert.ok(result.unresolvedRows[0].matchedProducts[0].conflicts.includes('multiple_name_model_values'));
+assert.ok(result.errors.some(error => error.includes('wooProducts[0]') && error.includes('conflicting or ambiguous')));
 assert.strictEqual(result.readyForDraftSelection, false);
+assert.strictEqual(result.firstFiveCandidates.length, 0);
 
 result = bridge.buildWooDraftBridgePreview([
   sourceRow({ sourceRowNumber: 10 }),
@@ -378,22 +378,23 @@ for (const [field, value] of [['model', 'GBD-200-9JF'], ['modelNumber', 'ＧＢ�
 result = bridge.buildWooDraftBridgePreview([sourceRow()], [
   { id: 5, status: 'publish', sku: 'GBD-200-9JF', model: 'GBD-200-1JF', name: 'No model evidence in name' }
 ], { wooFetchComplete: true });
-assert.strictEqual(result.unresolvedRows[0].reason, 'woo_identity_conflict');
+assert.ok(result.errors.some(error => error.includes('wooProducts[0]') && error.includes('conflicting or ambiguous')));
 assert.strictEqual(result.readyForDraftSelection, false);
+assert.strictEqual(result.firstFiveCandidates.length, 0);
 
 result = bridge.buildWooDraftBridgePreview([sourceRow()], [
   { id: 6, status: 'publish', sku: '', model: 'GBD-200-9JF', modelNumber: 'GBD-200-1JF', name: 'No model evidence in name' }
 ], { wooFetchComplete: true });
-assert.strictEqual(result.unresolvedRows[0].reason, 'woo_identity_conflict');
-assert.ok(result.unresolvedRows[0].matchedProducts[0].conflicts.includes('multiple_explicit_model_values'));
+assert.ok(result.errors.some(error => error.includes('wooProducts[0]') && error.includes('conflicting or ambiguous')));
 assert.strictEqual(result.readyForDraftSelection, false);
+assert.strictEqual(result.firstFiveCandidates.length, 0);
 
 result = bridge.buildWooDraftBridgePreview([sourceRow()], [
   { id: 7, status: 'publish', sku: 'GBD-200-9JF', name: 'Casio GBD-200-1JF New Watch' }
 ], { wooFetchComplete: true });
-assert.strictEqual(result.unresolvedRows[0].reason, 'woo_identity_conflict');
-assert.ok(result.unresolvedRows[0].matchedProducts[0].conflicts.includes('name_model_conflicts_with_matched_identity'));
+assert.ok(result.errors.some(error => error.includes('wooProducts[0]') && error.includes('conflicting or ambiguous')));
 assert.strictEqual(result.readyForDraftSelection, false);
+assert.strictEqual(result.firstFiveCandidates.length, 0);
 
 result = bridge.buildWooDraftBridgePreview([sourceRow()], [], { wooFetchComplete: false });
 assert.strictEqual(result.readyForDraftSelection, false);
@@ -450,6 +451,61 @@ for (const fixture of invalidWooElements) {
   } else {
     assert.strictEqual(wooInput[0], fixture.value, fixture.label);
   }
+}
+
+const invalidWooIdentities = [
+  { label: 'generic name only', product: { status: 'publish', name: 'Generic wristwatch' } },
+  { label: 'brand name only', product: { status: 'publish', name: 'Casio watch' } },
+  { label: 'descriptive name only', product: { status: 'publish', name: 'Seiko automatic watch' } },
+  { label: 'short alphabetic SKU', product: { status: 'publish', sku: 'ABC' } },
+  { label: 'numeric SKU', product: { status: 'publish', sku: '12345' } },
+  { label: 'generic direct model', product: { status: 'publish', model: 'not-a-model' } },
+  { label: 'alphabetic direct model', product: { status: 'publish', model: 'ABCDE' } },
+  { label: 'numeric direct model', product: { status: 'publish', model: '12345' } },
+  { label: 'all identity fields empty', product: { status: 'publish', sku: '', model: '', modelNumber: '', model_number: '', name: '' } },
+  { label: 'multiple name models', product: { status: 'publish', name: 'Casio GBD-200-9JF and GBD-200-1JF' } },
+  { label: 'SKU and direct model conflict', product: { status: 'publish', sku: 'GBD-200-9JF', model: 'GBD-200-1JF' } },
+  { label: 'SKU and name conflict', product: { status: 'publish', sku: 'GBD-200-9JF', name: 'Casio GBD-200-1JF Watch' } },
+  { label: 'direct model and name conflict', product: { status: 'publish', model: 'GBD-200-9JF', name: 'Casio GBD-200-1JF Watch' } },
+  { label: 'direct aliases conflict', product: { status: 'publish', model: 'GBD-200-9JF', modelNumber: 'GBD-200-1JF' } },
+  { label: 'multiple direct model values', product: { status: 'publish', model: ['GBD-200-9JF', 'GBD-200-1JF'] } },
+  { label: 'invalid SKU with valid model', product: { status: 'publish', sku: 'ABC', model: 'GBD-200-9JF' } },
+  { label: 'invalid direct model with valid name', product: { status: 'publish', model: 'not-a-model', name: 'Casio GBD-200-9JF Watch' } }
+];
+for (const fixture of invalidWooIdentities) {
+  const wooInput = [fixture.product];
+  const wooBefore = JSON.stringify(wooInput);
+  let invalidIdentityResult;
+  assert.doesNotThrow(() => {
+    invalidIdentityResult = bridge.buildWooDraftBridgePreview([sourceRow()], wooInput, { wooFetchComplete: true });
+  }, fixture.label);
+  assert.ok(invalidIdentityResult.errors.some(error => error.includes('wooProducts[0]')), fixture.label);
+  assert.strictEqual(invalidIdentityResult.readyForDraftSelection, false, fixture.label);
+  assert.strictEqual(invalidIdentityResult.firstFiveCandidates.length, 0, fixture.label);
+  assert.strictEqual(invalidIdentityResult.accountingComplete, true, fixture.label);
+  assert.strictEqual(JSON.stringify(wooInput), wooBefore, fixture.label);
+}
+
+const validWooIdentities = [
+  { label: 'SKU hyphenated', model: 'GBD-200-9JF', product: { status: 'publish', sku: 'GBD-200-9JF' } },
+  { label: 'SKU compact', model: 'SBTR026', brand: 'SEIKO', product: { status: 'publish', sku: 'SBTR026' } },
+  { label: 'direct model', model: 'NB1050-59E', brand: 'CITIZEN', product: { status: 'draft', model: 'NB1050-59E' } },
+  { label: 'modelNumber', model: 'SBTR026', brand: 'SEIKO', product: { status: 'pending', modelNumber: 'SBTR-026' } },
+  { label: 'model_number', model: 'GBD-200-9JF', product: { status: 'publish', model_number: 'GBD2009JF' } },
+  { label: 'name Casio', model: 'GBD-200-9JF', product: { status: 'publish', name: 'Casio GBD-200-9JF Wristwatch' } },
+  { label: 'name Seiko', model: 'SBTR026', brand: 'SEIKO', product: { status: 'draft', name: 'Seiko SBTR026 Watch' } },
+  { label: 'name Citizen', model: 'NB1050-59E', brand: 'CITIZEN', product: { status: 'pending', name: 'Citizen NB1050-59E Wristwatch' } },
+  { label: 'same key across fields', model: 'GBD-200-9JF', product: { status: 'publish', sku: 'GBD2009JF', model: 'GBD-200-9JF', name: 'Casio GBD 200 9JF Watch' } },
+  { label: 'generic name with SKU', model: 'GBD-200-9JF', product: { status: 'draft', sku: 'GBD-200-9JF', name: 'Generic wristwatch' } },
+  { label: 'generic name with direct model', model: 'GBD-200-9JF', product: { status: 'pending', model: 'GBD-200-9JF', name: 'Generic wristwatch' } }
+];
+for (const fixture of validWooIdentities) {
+  const brand = fixture.brand || 'CASIO';
+  const source = sourceRow({ brand, model: fixture.model, title: brand + ' ' + fixture.model + ' Watch' });
+  result = bridge.buildWooDraftBridgePreview([source], [fixture.product], { wooFetchComplete: true });
+  assert.deepStrictEqual(result.errors, [], fixture.label);
+  assert.strictEqual(result.existingWooProducts.length, 1, fixture.label);
+  assert.strictEqual(result.accountingComplete, true, fixture.label);
 }
 
 const sparseWoo = new Array(1);

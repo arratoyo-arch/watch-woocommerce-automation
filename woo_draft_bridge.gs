@@ -23,6 +23,14 @@ function normalizeWooDraftBridgeModelKey_(value) {
   return normalizeWooDraftBridgeText_(value).replace(/[\s-]+/g, '');
 }
 
+function getValidWooDraftBridgeModelKey_(value) {
+  if (typeof value !== 'string') return '';
+  var normalized = normalizeWooDraftBridgeText_(value).trim();
+  if (!/^[A-Z0-9]+(?:[\s-]+[A-Z0-9]+)*$/.test(normalized)) return '';
+  var key = normalizeWooDraftBridgeModelKey_(normalized);
+  return key.length >= 5 && /[A-Z]/.test(key) && /[0-9]/.test(key) ? key : '';
+}
+
 function getWooDraftBridgeValue_(row, names) {
   for (var i = 0; i < names.length; i++) {
     if (row && row[names[i]] !== undefined && row[names[i]] !== null && row[names[i]] !== '') {
@@ -64,8 +72,7 @@ function extractWooDraftBridgeModels_(value) {
   return uniqueWooDraftBridgeModels_(tokens.map(function(token) {
     return token.trim().replace(/[\s-]+/g, '-');
   }).filter(function(token) {
-    var key = normalizeWooDraftBridgeModelKey_(token);
-    return key.length >= 5 && /[A-Z]/.test(key) && /[0-9]/.test(key);
+    return !!getValidWooDraftBridgeModelKey_(token);
   }));
 }
 
@@ -149,8 +156,7 @@ function classifyWooDraftBridgeSource_(row, index) {
   var models = parseWooDraftBridgeExplicitModels_(explicitValue);
   if (!models.length && !String(explicitValue || '').trim()) models = extractWooDraftBridgeModels_(title);
   var validModels = models.filter(function(model) {
-    var key = normalizeWooDraftBridgeModelKey_(model);
-    return key.length >= 5 && /[A-Z]/.test(key) && /[0-9]/.test(key);
+    return !!getValidWooDraftBridgeModelKey_(model);
   });
   if (validModels.length !== 1) {
     classified.classification = validModels.length > 1 ? 'unresolved' : 'invalid';
@@ -244,7 +250,7 @@ function hasWooDraftBridgeNamedReferences_(value) {
   return Array.isArray(value) && value.some(isWooDraftBridgeNamedReference_);
 }
 
-function validateWooDraftBridgeProduct_(product) {
+function validateWooDraftBridgeProduct_(product, sourceModels) {
   if (product === null) return 'must be a non-null object';
   if (typeof product !== 'object') return 'must be an object';
   if (Array.isArray(product)) return 'must not be an array';
@@ -253,14 +259,23 @@ function validateWooDraftBridgeProduct_(product) {
     return 'status must exactly equal publish, draft, or pending';
   }
 
-  var hasIdentity = false;
+  var identityKeys = [];
   if (Object.prototype.hasOwnProperty.call(product, 'sku') && product.sku !== '') {
     if (!isWooDraftBridgeNonBlankString_(product.sku)) return 'sku must be a non-blank string when provided';
-    hasIdentity = true;
+    var skuKey = getValidWooDraftBridgeModelKey_(product.sku);
+    if (!skuKey) return 'sku must contain a valid model identity';
+    identityKeys.push(skuKey);
   }
   if (Object.prototype.hasOwnProperty.call(product, 'name') && product.name !== '') {
     if (!isWooDraftBridgeNonBlankString_(product.name)) return 'name must be a non-blank string when provided';
-    hasIdentity = true;
+    extractWooDraftBridgeModels_(product.name).forEach(function(model) {
+      identityKeys.push(getValidWooDraftBridgeModelKey_(model));
+    });
+    sourceModels.forEach(function(model) {
+      if (wooDraftBridgeNameHasExactModel_(product.name, model)) {
+        identityKeys.push(getValidWooDraftBridgeModelKey_(model));
+      }
+    });
   }
 
   var modelFields = ['model', 'modelNumber', 'model_number'];
@@ -268,20 +283,28 @@ function validateWooDraftBridgeProduct_(product) {
     var field = modelFields[i];
     var value = product[field];
     if (!Object.prototype.hasOwnProperty.call(product, field) || value === '') continue;
-    if (typeof value === 'string') {
-      if (!value.trim()) return field + ' must be non-blank when provided';
-      hasIdentity = true;
-      continue;
-    }
-    if (!Array.isArray(value) || value.length === 0) return field + ' must be a string or a non-empty string array';
-    for (var j = 0; j < value.length; j++) {
-      if (!Object.prototype.hasOwnProperty.call(value, j) || !isWooDraftBridgeNonBlankString_(value[j])) {
-        return field + ' must contain only non-blank strings';
+    if (typeof value !== 'string') {
+      if (!Array.isArray(value) || value.length === 0) return field + ' must be a string or a non-empty string array';
+      for (var j = 0; j < value.length; j++) {
+        if (!Object.prototype.hasOwnProperty.call(value, j) || !isWooDraftBridgeNonBlankString_(value[j])) {
+          return field + ' must contain only non-blank strings';
+        }
       }
     }
-    hasIdentity = true;
+    var parsedModels = parseWooDraftBridgeExplicitModels_(value);
+    if (!parsedModels.length) return field + ' must contain a valid model identity';
+    for (var modelIndex = 0; modelIndex < parsedModels.length; modelIndex++) {
+      var modelKey = getValidWooDraftBridgeModelKey_(parsedModels[modelIndex]);
+      if (!modelKey) return field + ' must contain only valid model identities';
+      identityKeys.push(modelKey);
+    }
   }
-  return hasIdentity ? '' : 'must include sku, model, modelNumber, model_number, or name identification';
+  var uniqueIdentityKeys = {};
+  identityKeys.filter(Boolean).forEach(function(key) { uniqueIdentityKeys[key] = true; });
+  var keys = Object.keys(uniqueIdentityKeys);
+  if (!keys.length) return 'must include one matchable model identity in sku, model, modelNumber, model_number, or name';
+  if (keys.length > 1) return 'contains conflicting or ambiguous model identities';
+  return '';
 }
 
 function buildWooDraftBridgePreview(sourceRows, wooProducts, options) {
@@ -314,6 +337,13 @@ function buildWooDraftBridgePreview(sourceRows, wooProducts, options) {
   if (settings.wooFetchComplete !== true) result.errors.push('Woo product retrieval is not confirmed complete.');
   if (settings.wooFetchError) result.errors.push('Woo product retrieval error: ' + String(settings.wooFetchError));
 
+  var sourceModelsForWooValidation = [];
+  rows.forEach(function(row, index) {
+    var source = classifyWooDraftBridgeSource_(row, index);
+    if (source.classification === 'valid' && sourceModelsForWooValidation.indexOf(source.modelKey) === -1) {
+      sourceModelsForWooValidation.push(source.model);
+    }
+  });
   var wooSnapshotValid = Array.isArray(wooProducts);
   if (wooSnapshotValid) {
     for (var productIndex = 0; productIndex < products.length; productIndex++) {
@@ -322,7 +352,7 @@ function buildWooDraftBridgePreview(sourceRows, wooProducts, options) {
         wooSnapshotValid = false;
         continue;
       }
-      var productError = validateWooDraftBridgeProduct_(products[productIndex]);
+      var productError = validateWooDraftBridgeProduct_(products[productIndex], sourceModelsForWooValidation);
       if (productError) {
         result.errors.push('wooProducts[' + productIndex + '] ' + productError + '.');
         wooSnapshotValid = false;
