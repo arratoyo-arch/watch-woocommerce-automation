@@ -249,10 +249,8 @@ function validateWooDraftBridgeProduct_(product) {
   if (typeof product !== 'object') return 'must be an object';
   if (Array.isArray(product)) return 'must not be an array';
 
-  if (!isWooDraftBridgeNonBlankString_(product.status)) return 'status must be a non-blank string';
-  var status = product.status.trim().toLowerCase();
-  if (WOO_DRAFT_BRIDGE_EXISTING_STATUSES_.indexOf(status) === -1) {
-    return 'status must be publish, draft, or pending';
+  if (typeof product.status !== 'string' || WOO_DRAFT_BRIDGE_EXISTING_STATUSES_.indexOf(product.status) === -1) {
+    return 'status must exactly equal publish, draft, or pending';
   }
 
   var hasIdentity = false;
@@ -333,7 +331,7 @@ function buildWooDraftBridgePreview(sourceRows, wooProducts, options) {
   }
 
   var relevantProducts = (wooSnapshotValid ? products : []).filter(function(product) {
-    return WOO_DRAFT_BRIDGE_EXISTING_STATUSES_.indexOf(String(product && product.status || '').trim().toLowerCase()) !== -1;
+    return WOO_DRAFT_BRIDGE_EXISTING_STATUSES_.indexOf(product.status) !== -1;
   });
   var firstByModel = {};
 
@@ -390,7 +388,7 @@ function buildWooDraftBridgePreview(sourceRows, wooProducts, options) {
       var resolvedMatch = matches[0];
       var existing = { source: source, matchMethod: resolvedMatch.matchMethod, products: [resolvedMatch.product] };
       result.existingWooProducts.push(existing);
-      result.existingWooByStatus[String(resolvedMatch.product.status).toLowerCase()].push({
+      result.existingWooByStatus[resolvedMatch.product.status].push({
         sourceRowNumber: source.sourceRowNumber,
         model: source.model,
         matchMethod: resolvedMatch.matchMethod,

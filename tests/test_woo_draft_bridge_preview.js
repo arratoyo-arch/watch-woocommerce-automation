@@ -411,6 +411,19 @@ const invalidWooElements = [
   { label: 'empty object', value: {} },
   { label: 'missing status', value: { sku: 'GBD-200-9JF' } },
   { label: 'invalid status type', value: { status: 10, sku: 'GBD-200-9JF' } },
+  { label: 'leading and trailing status whitespace', value: { status: ' publish ', sku: 'GBD-200-9JF' } },
+  { label: 'trailing status whitespace', value: { status: 'draft ', sku: 'GBD-200-9JF' } },
+  { label: 'tab and newline status whitespace', value: { status: '\tpending\n', sku: 'GBD-200-9JF' } },
+  { label: 'uppercase status', value: { status: 'PUBLISH', sku: 'GBD-200-9JF' } },
+  { label: 'mixed case status', value: { status: 'Draft', sku: 'GBD-200-9JF' } },
+  { label: 'full-width status', value: { status: 'ＰＵＢＬＩＳＨ', sku: 'GBD-200-9JF' } },
+  { label: 'empty status', value: { status: '', sku: 'GBD-200-9JF' } },
+  { label: 'blank status', value: { status: '   ', sku: 'GBD-200-9JF' } },
+  { label: 'null status', value: { status: null, sku: 'GBD-200-9JF' } },
+  { label: 'undefined status', value: { status: undefined, sku: 'GBD-200-9JF' } },
+  { label: 'boolean status', value: { status: true, sku: 'GBD-200-9JF' } },
+  { label: 'array status', value: { status: ['publish'], sku: 'GBD-200-9JF' } },
+  { label: 'object status', value: { status: { value: 'publish' }, sku: 'GBD-200-9JF' } },
   { label: 'unsupported status', value: { status: 'private', sku: 'GBD-200-9JF' } },
   { label: 'missing identity', value: { status: 'publish' } },
   { label: 'invalid sku type', value: { status: 'publish', sku: 123 } },
@@ -497,6 +510,8 @@ for (const status of ['publish', 'draft', 'pending']) {
   result = bridge.buildWooDraftBridgePreview([sourceRow()], [wooProduct], { wooFetchComplete: true });
   assert.strictEqual(result.errors.length, 0, status);
   assert.strictEqual(result.existingWooProducts.length, 1, status);
+  assert.strictEqual(result.existingWooByStatus[status].length, 1, status);
+  assert.strictEqual(result.existingWooByStatus[status][0].product, wooProduct, status);
   assert.strictEqual(JSON.stringify(wooProduct), wooBefore, status);
 }
 
