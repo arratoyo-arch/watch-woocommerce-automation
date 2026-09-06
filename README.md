@@ -247,10 +247,28 @@ Please confirm the product images, model number, and specifications before purch
 | ファイル | 責務 |
 | --- | --- |
 | `woocommerce.gs` | WooCommerce API 接続、商品取得、SKU・価格・在庫更新、preview-before-production、`Woo_Products` / `WC_Keep_Active` ワークフロー |
-| `woo_draft_bridge.gs` | WDB モデル番号から WooCommerce draft 候補を作成し、未出品モデルだけを draft 化する橋渡し処理（存在する場合） |
+| `woo_draft_bridge.gs` | 外部のread-only処理から受け取った中立的な候補行と、完全取得済みのWoo商品配列を照合するPreview-only処理 |
 | `utils.gs` | 共通ユーティリティ、入力検証、シート補助、ログ補助など |
 | `README.md` | 運用目的、リポジトリ分離、シート責務、安全運用ルール |
 | `AGENTS.md` | Codex が恒久的に守る開発・運用ガードレール |
+
+### Preview-only Woo Draft Bridge
+
+`buildWooDraftBridgePreview(sourceRows, wooProducts, options)` は純粋なPreview builderです。APIやSpreadsheetを呼ばず、商品作成・更新・Publishも行いません。呼び出し側がWoo商品の `publish`、`draft`、`pending` を完全取得できた場合だけ `options.wooFetchComplete: true` を指定します。`wooProducts` は密な配列で、各要素が非nullの非配列object、`status` がWoo APIの正式な小文字値 `publish` / `draft` / `pending` のいずれかと完全一致し、かつ `sku`、`model`、`modelNumber`、`model_number`、`name` から一意で実際に照合可能なmodelKeyを取得できる必要があります。modelKeyはNFKC・大文字化・空白と一般的なハイフンの除去後に5文字以上で、英字と数字を最低1文字ずつ含むものだけを許可します。商品名由来のidentityは、そのPreviewに含まれる有効なsource modelとの境界付き完全一致だけから取得し、任意の商品名トークンを新しいmodel identityとして推測しません。suppliedされたSKU・直接型番の不正値、複数の異なるsource modelとの商品名一致、各識別情報間の矛盾、source modelと一致しないname-only商品は拒否します。ただしgenericなnameや仕様表現だけのnameは、有効で矛盾のないSKUまたは直接型番が別にあれば許可します。statusの前後空白、大文字・小文字違い、全角化、不明値、異常型は正規化・推測せず拒否します。既知フィールドの異常型、疎要素、null、primitive、配列要素、識別情報のないobjectはindexと理由をerrorsへ記録し、スナップショット全体を不完全として照合に使用しません。正常な空配列は完全取得結果として許可します。取得不完全、warnings/errorsあり、または全入力行のaccounting不一致の場合はfail-closedとなり、`readyForDraftSelection` は `false`、`firstFiveCandidates` は空になります。
+
+各入力行は `newDraftCandidates`、`existingWooProducts`、`duplicates`、`excludedRows`、`invalidModels`、`unresolvedRows` のいずれか1つに分類されます。中立的なsource rowには、信頼できる商品種別証拠から呼び出し側が設定した構造化フィールド `productType` が必須です。NFKC・大文字化・trim後の完全一致で `WRISTWATCH` または `腕時計` だけを安全な腕時計として許可します。`CALCULATOR`、`CLOCK`、`ACCESSORY`など明示的な非腕時計値は `excludedRows`、空欄や未知値は理由付きで `unresolvedRows` に入ります。title、categories、モデル番号、ブランド名だけから腕時計とは推測しません。対象ブランドも構造化された文字列 `brand` または `maker` だけから判定し、NFKC・大文字化・trim後に `CASIO`、`CITIZEN`、`SEIKO`、`ORIENT` のいずれかと完全一致する必要があります。titleからブランドを推測しません。両フィールドが異なる場合、欠落・異常型の場合は `unresolvedRows`、明示的な対象外ブランドは `excludedRows` に分類します。
+
+安全な候補には、対象ブランド、明示的な新品condition、許可された `productType`、有効な構造化モデル番号、商品名、`price`、`images`、完全な `descriptionContent`、`categories`、`tags`、`stockPolicy`、`shippingPolicy` のすべてが必要です。source modelは `model`、`modelNumber`、`model_number` の構造化値を優先し、欠落時にtitle内の仕様表現から推測しません。商品名は `title`、`name`、`productName` の優先順位で、最初のtrim後非空の文字列だけを採用します。boolean、number、array、objectは商品名として文字列化しません。採用した商品名はPreview候補の `productName` に保持します。
+
+source model aliasは、存在する `model`、`modelNumber`、`model_number` の全値を検証します。各aliasはtrim後非空の文字列、または全要素が実在するtrim後非空文字列である密な配列でなければならず、null、undefined、number、boolean、object、入れ子配列、空配列、疎配列、無効な型番文字列を黙って破棄しません。全alias・全要素が有効なmodel identityで、同じmodelKeyを示す場合だけ表記差を許可します。無効値を含む行は理由付きで `invalidModels`、異なる有効modelKeyを含む行は `unresolvedRows` に一度だけ分類し、後続aliasの有効値で先行aliasの不正値を隠しません。
+
+文字列の `price` はNFKCとtrim後にASCII数字による符号なし10進整数または、小数点の前後に数字がある10進小数だけを許可します。このため前後の通常空白・タブ・全角空白と全角数字は正規化後に許可されますが、0、負数、先頭の `+`、16進・2進・8進、指数表記、`.5`、`1.`、通貨記号、通貨単位、桁区切りは拒否します。number型も有限かつ0より大きい値だけを許可し、boolean、array、objectは拒否します。価格aliasは `price`、`regularPrice`、`regular_price` の順、画像aliasは `images`、`imageUrls`、`image_urls`、`image` の順に各値を検証し、最初の有効値を採用します。無効な先行aliasは有効な後続aliasを遮りません。採用値とaliasは候補の `price` / `priceAlias`、`images` / `imagesAlias` に保持します。価格換算や画像へのネットワークアクセスは行いません。
+
+`images` は非空文字列または非空の `src` / `url` を持つ要素が最低1件、`stockPolicy` と `shippingPolicy` はtrim後に非空の文字列を要求します。呼び出し側は説明の根拠となる構造化object `descriptionContent` を渡します。`descriptionContent.model` はsource modelと同じmodelKey、`descriptionContent.brand` は構造化source brandと完全一致し、`series` はtrim後2文字以上の文字列、`keyFeatures` はtrim後2文字以上の文字列またはそのような文字列要素を含む配列、`condition` は許可された新品値でなければなりません。`japanDomesticModel`、`authenticFromJapan`、`freeInternationalShippingFromJapan`、`trackingAndCarefulPacking`、`customsBuyerResponsibility`、`buyerChecksModelSpecificationsSizeCompatibility`、`contactBeforeOrdering`、`humanConfirmationBeforePublish` は、呼び出し側が根拠を確認した場合だけ個別に厳密なboolean `true` を設定します。全要素が検証できた場合だけ、Preview builderがModel、Brand、Series、Key features、新品状態、JDM、日本からの正規品、国際送料無料、追跡・梱包、関税責任、購入前確認、事前問い合わせ、Publish前の人間確認を明記した標準本文を純粋に構築し、候補の `description` に保持します。元の `row.description` は完成本文として信用せず、存在する場合は確認用の `sourceDescription` にだけ保持します。不足内容は推測せず、`missingDescriptionFields` と `missingFields` に個別記録します。`categories` と `tags` は配列とし、非空文字列、非空の `name`、または正の数値・非空文字列の `id` を持つ要素が最低1件必要です。通常空白、タブ、改行、全角空白だけの文字列や空要素だけの配列も不足扱いです。不足行は `unresolvedRows` に一度だけ分類され、`newDraftCandidates` と `firstFiveCandidates` には入りません。画像URLへのアクセス、Woo Draft作成・更新・Publishは行いません。
+
+Woo商品配列の明示的な型番入力フィールドは `model`、`modelNumber`、`model_number` です。照合はDraft候補の必須項目検証より先に行い、SKU完全一致、明示的な型番完全一致、商品名証拠の順に優先します。このため商品名など候補項目が不足していてもWoo既存商品と一意に照合できた行は `existingWooProducts` になります。商品名証拠は、そのPreviewの有効なsource model集合だけを候補に、NFKC・大文字化と前後英数字境界を使って照合し、空白と一般的なハイフンを除去したmodelKeyの完全一致で判定します。`WR-200M`、`ISO-6425`、`10-Year`、`200-Meter` などsource modelではない仕様トークンを別identityとして推測しません。商品名全体へのsubstring検索は行わず、suffix・色番号・国内型番末尾の省略や長い英数字列の内部一致は拒否します。商品名が異なるsource modelを複数示す場合、複数Woo商品が一致する場合、またはSKU・明示型番・商品名証拠に明確な矛盾がある場合はfail-closedにします。任意の `meta_data` は型番証拠として使用しません。
+
+新品判定は構造化された `condition` または `itemCondition` の明示値だけを使用し、商品名や `category` に含まれる単語 `New` は新品証拠にしません。構造化された `productType` が腕時計の場合、title中の `BAND`、`STRAP`、`BRACELET` は腕時計の特徴表現として扱い、それだけでは除外しません。一方、`Replacement Strap` のような明示的な交換部品表現が腕時計productTypeと矛盾する場合は `unresolvedRows`、`productType=ACCESSORY` は `excludedRows` に分類します。`firstFiveCandidates` は完全な候補から最大5件を提示する人間確認用のDraft選択候補であり、Draft作成指示ではありません。
 
 ### watch-ebay-automation（参照用）
 
