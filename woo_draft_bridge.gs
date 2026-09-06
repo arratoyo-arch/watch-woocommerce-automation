@@ -32,6 +32,14 @@ function getWooDraftBridgeValue_(row, names) {
   return '';
 }
 
+function getWooDraftBridgeStringValue_(row, names) {
+  for (var i = 0; i < names.length; i++) {
+    var value = row && row[names[i]];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return '';
+}
+
 function uniqueWooDraftBridgeModels_(models) {
   var seen = {};
   return models.filter(function(model) {
@@ -79,7 +87,7 @@ function wooDraftBridgeNameHasExactModel_(name, model) {
 }
 
 function classifyWooDraftBridgeSource_(row, index) {
-  var title = String(getWooDraftBridgeValue_(row, ['title', 'name', 'productName']) || '');
+  var title = getWooDraftBridgeStringValue_(row, ['title', 'name', 'productName']);
   var brandValue = String(getWooDraftBridgeValue_(row, ['brand', 'maker']) || '');
   var brandEvidence = normalizeWooDraftBridgeText_(brandValue + ' ' + title);
   var brands = WOO_DRAFT_BRIDGE_BRANDS_.filter(function(brand) {
@@ -144,6 +152,7 @@ function classifyWooDraftBridgeSource_(row, index) {
   classified.brand = brands[0];
   classified.model = validModels[0];
   classified.modelKey = normalizeWooDraftBridgeModelKey_(validModels[0]);
+  classified.productName = title;
   return classified;
 }
 
@@ -193,9 +202,11 @@ function isWooDraftBridgeNonBlankString_(value) {
 }
 
 function isWooDraftBridgePositivePrice_(value) {
-  if (typeof value !== 'string' && typeof value !== 'number') return false;
-  if (typeof value === 'string' && !value.trim()) return false;
-  var amount = Number(value);
+  if (typeof value === 'number') return isFinite(value) && value > 0;
+  if (typeof value !== 'string') return false;
+  var normalized = value.normalize('NFKC').trim();
+  if (!/^\d+(?:\.\d+)?$/.test(normalized)) return false;
+  var amount = Number(normalized);
   return isFinite(amount) && amount > 0;
 }
 
@@ -275,6 +286,14 @@ function buildWooDraftBridgePreview(sourceRows, wooProducts, options) {
       return;
     }
 
+    if (!source.productName) {
+      source.reason = 'required_candidate_fields_missing';
+      source.missingFields = ['productName'];
+      result.unresolvedRows.push(source);
+      result.accounting.push({ sourceIndex: index, classification: 'unresolvedRows' });
+      return;
+    }
+
     result.validNewWatchRows.push(source);
     if (firstByModel[source.modelKey]) {
       source.firstSourceIndex = firstByModel[source.modelKey].sourceIndex;
@@ -326,6 +345,7 @@ function buildWooDraftBridgePreview(sourceRows, wooProducts, options) {
       brand: source.brand,
       model: source.model,
       modelKey: source.modelKey,
+      productName: source.productName,
       source: row,
       missingFields: []
     };
@@ -343,6 +363,7 @@ function buildWooDraftBridgePreview(sourceRows, wooProducts, options) {
     if (!hasWooDraftBridgeNamedReferences_(row && row.categories)) candidate.missingFields.push('categories');
     if (!hasWooDraftBridgeNamedReferences_(row && row.tags)) candidate.missingFields.push('tags');
     if (!isWooDraftBridgeNonBlankString_(row && row.stockPolicy)) candidate.missingFields.push('stockPolicy');
+    if (!isWooDraftBridgeNonBlankString_(row && row.shippingPolicy)) candidate.missingFields.push('shippingPolicy');
     if (candidate.missingFields.length > 0) {
       candidate.reason = 'required_candidate_fields_missing';
       result.unresolvedRows.push(candidate);

@@ -258,7 +258,11 @@ Please confirm the product images, model number, and specifications before purch
 
 各入力行は `newDraftCandidates`、`existingWooProducts`、`duplicates`、`excludedRows`、`invalidModels`、`unresolvedRows` のいずれか1つに分類されます。中立的なsource rowには、信頼できる商品種別証拠から呼び出し側が設定した構造化フィールド `productType` が必須です。NFKC・大文字化・trim後の完全一致で `WRISTWATCH` または `腕時計` だけを安全な腕時計として許可します。`CALCULATOR`、`CLOCK`、`ACCESSORY`など明示的な非腕時計値は `excludedRows`、空欄や未知値は理由付きで `unresolvedRows` に入ります。title、categories、モデル番号、ブランド名だけから腕時計とは推測しません。
 
-安全な候補には `price`、`images`、`description`、`categories`、`tags`、`stockPolicy` のすべてが必要です。`price` は有限の正数、`images` は非空文字列または非空の `src` / `url` を持つ要素が最低1件、`description` と `stockPolicy` はtrim後に非空の文字列を要求します。`categories` と `tags` は配列とし、非空文字列、非空の `name`、または正の数値・非空文字列の `id` を持つ要素が最低1件必要です。通常空白、タブ、改行、全角空白だけの文字列、空要素だけの配列、0・負数・NaN・Infinity・任意objectのpriceは不足扱いです。不足行は `missingFields` と理由を保持して `unresolvedRows` に入り、`newDraftCandidates` と `firstFiveCandidates` には入りません。画像URLへのアクセスや価格換算は行いません。
+安全な候補には、対象ブランド、明示的な新品condition、許可された `productType`、有効なモデル番号、商品名、`price`、`images`、`description`、`categories`、`tags`、`stockPolicy`、`shippingPolicy` のすべてが必要です。商品名は `title`、`name`、`productName` の優先順位で、最初のtrim後非空の文字列だけを採用します。boolean、number、array、objectは商品名として文字列化しません。採用した商品名はPreview候補の `productName` に保持します。
+
+文字列の `price` はNFKCとtrim後にASCII数字による符号なし10進整数または、小数点の前後に数字がある10進小数だけを許可します。このため前後の通常空白・タブ・全角空白と全角数字は正規化後に許可されますが、0、負数、先頭の `+`、16進・2進・8進、指数表記、`.5`、`1.`、通貨記号、通貨単位、桁区切りは拒否します。number型も有限かつ0より大きい値だけを許可し、boolean、array、objectは拒否します。価格換算は行いません。
+
+`images` は非空文字列または非空の `src` / `url` を持つ要素が最低1件、`description`、`stockPolicy`、`shippingPolicy` はtrim後に非空の文字列を要求します。shippingPolicyは呼び出し側が明示し、コード側では推測・自動生成しません。`categories` と `tags` は配列とし、非空文字列、非空の `name`、または正の数値・非空文字列の `id` を持つ要素が最低1件必要です。通常空白、タブ、改行、全角空白だけの文字列や空要素だけの配列も不足扱いです。不足行は `missingFields` と理由を保持して `unresolvedRows` に一度だけ分類され、`newDraftCandidates` と `firstFiveCandidates` には入りません。画像URLへのアクセスは行いません。
 
 Woo商品配列の明示的な型番入力フィールドは `model`、`modelNumber`、`model_number` です。照合はSKU完全一致、明示的な型番完全一致、商品名証拠の順に優先します。商品名はNFKC・大文字・共通ハイフンへ正規化したうえで、英数字境界を持つ型番セグメントの完全一致だけを採用します。複数Woo商品が一致する場合、複数の明示型番がある場合、またはSKU・明示型番・商品名証拠に明確な矛盾がある場合は `unresolvedRows` とwarningへ送り、選択処理をfail-closedにします。任意の `meta_data` は型番証拠として使用しません。
 

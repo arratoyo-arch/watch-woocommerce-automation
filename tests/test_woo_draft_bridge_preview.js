@@ -11,7 +11,8 @@ function sourceRow(overrides) {
     brand: 'CASIO', model: 'GBD-200-9JF', title: 'Casio GBD-200-9JF New Watch', condition: 'New',
     productType: 'WRISTWATCH',
     price: '199', images: ['read-only-image-reference'], description: 'Needs human review',
-    categories: ['Watches'], tags: ['JDM'], stockPolicy: 'Human confirmation required'
+    categories: ['Watches'], tags: ['JDM'], stockPolicy: 'Human confirmation required',
+    shippingPolicy: 'Free international shipping from Japan with tracking'
   }, overrides || {});
 }
 
@@ -110,13 +111,74 @@ assert.strictEqual(result.newDraftCandidates.length, 0);
 assert.strictEqual(result.accounting.length, 4);
 assert.strictEqual(result.accountingComplete, true);
 
-result = bridge.buildWooDraftBridgePreview([sourceRow({ price: '', images: [], description: '', categories: [], tags: [], stockPolicy: '' })], [], { wooFetchComplete: true });
+for (const price of ['10', '10.50', '0.01', ' 199.99 ', '１９９．９９']) {
+  result = bridge.buildWooDraftBridgePreview([sourceRow({ price })], [], { wooFetchComplete: true });
+  assert.strictEqual(result.newDraftCandidates.length, 1, 'valid decimal price: ' + price);
+}
+
+const invalidPrices = [
+  '0', 0, '0.0', '-1', '+10', '0x10', '0X10', '0b10', '0B10', '0o10', '0O10',
+  '1e3', '1E3', '.5', '1.', 'Infinity', 'NaN', '$10', '10 USD', '1,000',
+  true, false, [], {}, Infinity, NaN
+];
+for (const price of invalidPrices) {
+  result = bridge.buildWooDraftBridgePreview([sourceRow({ price })], [], { wooFetchComplete: true });
+  assert.strictEqual(result.newDraftCandidates.length, 0, 'invalid price: ' + String(price));
+  assert.strictEqual(result.unresolvedRows.length, 1, 'invalid price: ' + String(price));
+  assert.ok(result.unresolvedRows[0].missingFields.includes('price'));
+  assert.strictEqual(result.missingPrices.length, 1);
+  assert.strictEqual(result.accounting.length, 1);
+  assert.strictEqual(result.accountingComplete, true);
+}
+
+const validProductNames = [
+  { title: 'Casio GBD-200-9JF New Watch' },
+  { title: '', name: 'Casio GBD-200-9JF Name Field' },
+  { title: '   ', productName: 'Casio GBD-200-9JF Product Name Field' },
+  { title: true, name: 'Casio GBD-200-9JF Valid Name' },
+  { title: {}, name: 'Casio GBD-200-9JF Valid Name' }
+];
+for (const overrides of validProductNames) {
+  result = bridge.buildWooDraftBridgePreview([sourceRow(overrides)], [], { wooFetchComplete: true });
+  assert.strictEqual(result.newDraftCandidates.length, 1);
+  assert.ok(result.newDraftCandidates[0].productName.includes('GBD-200-9JF'));
+}
+
+for (const title of ['', '   ', '\t\n　', true, 123, {}, []]) {
+  result = bridge.buildWooDraftBridgePreview([sourceRow({ title, name: '', productName: '' })], [], { wooFetchComplete: true });
+  assert.strictEqual(result.newDraftCandidates.length, 0, 'invalid product name: ' + String(title));
+  assert.strictEqual(result.unresolvedRows.length, 1);
+  assert.deepStrictEqual(result.unresolvedRows[0].missingFields, ['productName']);
+  assert.strictEqual(result.accounting.length, 1);
+  assert.strictEqual(result.accountingComplete, true);
+}
+
+const invalidShippingPolicies = ['', '   ', '\t\n　', null, true, 123, [], {}];
+for (const shippingPolicy of invalidShippingPolicies) {
+  result = bridge.buildWooDraftBridgePreview([sourceRow({ shippingPolicy })], [], { wooFetchComplete: true });
+  assert.strictEqual(result.newDraftCandidates.length, 0, 'invalid shipping policy: ' + String(shippingPolicy));
+  assert.strictEqual(result.unresolvedRows.length, 1);
+  assert.ok(result.unresolvedRows[0].missingFields.includes('shippingPolicy'));
+  assert.strictEqual(result.accounting.length, 1);
+  assert.strictEqual(result.accountingComplete, true);
+}
+
+result = bridge.buildWooDraftBridgePreview([
+  sourceRow({ model: 'GBD-200-1JF', title: 'Casio GBD-200-1JF New Watch' }),
+  sourceRow({ model: 'GBD-200-2JF', title: 'Casio GBD-200-2JF New Watch', shippingPolicy: '' })
+], [], { wooFetchComplete: true });
+assert.strictEqual(result.newDraftCandidates.length, 1);
+assert.strictEqual(result.unresolvedRows.length, 1);
+assert.deepStrictEqual(result.firstFiveCandidates.map(item => item.model), ['GBD-200-1JF']);
+assert.deepStrictEqual(result.accounting.map(item => item.classification), ['newDraftCandidates', 'unresolvedRows']);
+
+result = bridge.buildWooDraftBridgePreview([sourceRow({ price: '', images: [], description: '', categories: [], tags: [], stockPolicy: '', shippingPolicy: '' })], [], { wooFetchComplete: true });
 assert.strictEqual(result.missingPrices.length, 1);
 assert.strictEqual(result.missingImages.length, 1);
 assert.strictEqual(result.newDraftCandidates.length, 0);
 assert.strictEqual(result.firstFiveCandidates.length, 0);
 assert.strictEqual(result.unresolvedRows.length, 1);
-assert.deepStrictEqual(result.unresolvedRows[0].missingFields, ['price', 'images', 'description', 'categories', 'tags', 'stockPolicy']);
+assert.deepStrictEqual(result.unresolvedRows[0].missingFields, ['price', 'images', 'description', 'categories', 'tags', 'stockPolicy', 'shippingPolicy']);
 assert.strictEqual(result.unresolvedRows[0].reason, 'required_candidate_fields_missing');
 assert.deepStrictEqual(result.accounting, [{ sourceIndex: 0, classification: 'unresolvedRows' }]);
 assert.strictEqual(result.accountingComplete, true);
