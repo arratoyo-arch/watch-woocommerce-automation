@@ -501,7 +501,8 @@ result = bridge.buildWooDraftBridgePreview([
   sourceRow({ condition: 'Used', title: 'Casio GBD-200-9JF New battery installed' }),
   sourceRow({ condition: 'New' })
 ], [], { wooFetchComplete: true });
-assert.strictEqual(result.excludedRows.length, 3);
+assert.strictEqual(result.excludedRows.length, 1);
+assert.strictEqual(result.unresolvedRows.length, 2);
 assert.strictEqual(result.newDraftCandidates.length, 1);
 
 for (const condition of ['New', 'Brand New', 'Unused', 'New with tags', 'New without tags', '新品', '未使用']) {
@@ -932,6 +933,75 @@ for (const status of ['publish', 'draft', 'pending']) {
   assert.strictEqual(result.existingWooByStatus[status][0].product, wooProduct, status);
   assert.strictEqual(JSON.stringify(wooProduct), wooBefore, status);
 }
+
+for (const [condition, itemCondition] of [['New', 'Used'], ['Used', 'New']]) {
+  result = bridge.buildWooDraftBridgePreview([sourceRow({ condition, itemCondition })], [], { wooFetchComplete: true });
+  assert.strictEqual(result.newDraftCandidates.length, 0);
+  assert.strictEqual(result.unresolvedRows.length, 1);
+  assert.strictEqual(result.unresolvedRows[0].reason, 'condition_alias_conflict');
+  assert.strictEqual(result.accountingComplete, true);
+  assert.deepStrictEqual(result.firstFiveCandidates, []);
+}
+
+for (const [condition, itemCondition] of [['New', 'NEW'], ['Brand New', 'BRAND NEW']]) {
+  result = bridge.buildWooDraftBridgePreview([sourceRow({ condition, itemCondition })], [], { wooFetchComplete: true });
+  assert.strictEqual(result.newDraftCandidates.length, 1);
+  assert.strictEqual(result.unresolvedRows.length, 0);
+  assert.strictEqual(result.accountingComplete, true);
+}
+
+for (const invalidAlias of ['', '   ', null, 1, true, {}]) {
+  result = bridge.buildWooDraftBridgePreview([sourceRow({ condition: 'New', itemCondition: invalidAlias })], [], { wooFetchComplete: true });
+  assert.strictEqual(result.newDraftCandidates.length, 0);
+  assert.strictEqual(result.unresolvedRows.length, 1);
+  assert.strictEqual(result.unresolvedRows[0].reason, 'condition_alias_invalid');
+  assert.strictEqual(result.accountingComplete, true);
+  assert.deepStrictEqual(result.firstFiveCandidates, []);
+}
+
+function assertDuplicatePromotion(rows, expectedUnresolved, expectedDuplicates, label) {
+  const before = JSON.parse(JSON.stringify(rows));
+  const promoted = bridge.buildWooDraftBridgePreview(rows, [], { wooFetchComplete: true });
+  assert.strictEqual(promoted.newDraftCandidates.length, 1, label);
+  assert.strictEqual(promoted.unresolvedRows.length, expectedUnresolved, label);
+  assert.strictEqual(promoted.duplicates.length, expectedDuplicates, label);
+  assert.strictEqual(promoted.accounting.length, rows.length, label);
+  assert.strictEqual(promoted.accountingComplete, true, label);
+  assert.strictEqual(promoted.firstFiveCandidates.length, 1, label);
+  assert.deepStrictEqual(rows, before, label + ' input unchanged');
+}
+
+assertDuplicatePromotion([
+  sourceRow({ model: 'GBD-200-3JF', price: '' }),
+  sourceRow({ model: 'GBD-200-3JF' })
+], 1, 0, 'incomplete price then complete');
+assertDuplicatePromotion([
+  sourceRow({ model: 'GBD-200-4JF', images: [] }),
+  sourceRow({ model: 'GBD-200-4JF' })
+], 1, 0, 'incomplete images then complete');
+assertDuplicatePromotion([
+  sourceRow({ model: 'GBD-200-5JF', descriptionContent: null }),
+  sourceRow({ model: 'GBD-200-5JF' })
+], 1, 0, 'incomplete description then complete');
+assertDuplicatePromotion([
+  sourceRow({ model: 'GBD-200-6JF' }),
+  sourceRow({ model: 'GBD-200-6JF', price: '' })
+], 0, 1, 'complete then incomplete duplicate');
+assertDuplicatePromotion([
+  sourceRow({ model: 'GBD-200-7JF', price: '' }),
+  sourceRow({ model: 'GBD-200-7JF' }),
+  sourceRow({ model: 'GBD-200-7JF' })
+], 1, 1, 'incomplete then complete then duplicate');
+
+result = bridge.buildWooDraftBridgePreview([
+  sourceRow({ model: 'GBD-200-8JF', price: '' }),
+  sourceRow({ model: 'GBD-200-8JF', images: [] })
+], [], { wooFetchComplete: true });
+assert.strictEqual(result.newDraftCandidates.length, 0);
+assert.strictEqual(result.unresolvedRows.length, 2);
+assert.strictEqual(result.duplicates.length, 0);
+assert.strictEqual(result.accountingComplete, true);
+assert.deepStrictEqual(result.firstFiveCandidates, []);
 
 const fixtureCount = 550;
 const largeFixture = Array.from({ length: fixtureCount }, (_, index) => sourceRow({

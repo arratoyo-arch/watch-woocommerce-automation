@@ -57,6 +57,34 @@ function getValidatedWooDraftBridgeValue_(row, names, validator) {
   return { value: '', alias: '' };
 }
 
+function validateWooDraftBridgeConditionAliases_(row) {
+  var fields = ['condition', 'itemCondition'];
+  var supplied = false;
+  var values = [];
+  for (var fieldIndex = 0; fieldIndex < fields.length; fieldIndex++) {
+    var field = fields[fieldIndex];
+    if (!row || !Object.prototype.hasOwnProperty.call(row, field)) continue;
+    supplied = true;
+    var value = row[field];
+    if (typeof value !== 'string' || !value.trim()) {
+      return { status: 'invalid', reason: 'condition_alias_invalid', detail: field + ' must be a non-empty string', values: [] };
+    }
+    values.push(normalizeWooDraftBridgeText_(value).trim().replace(/\s+/g, ' '));
+  }
+  if (!supplied) return { status: 'missing', reason: 'new_condition_not_confirmed', values: [] };
+  var uniqueValues = values.filter(function(value, index, allValues) {
+    return allValues.indexOf(value) === index;
+  });
+  if (uniqueValues.length > 1) {
+    return { status: 'conflict', reason: 'condition_alias_conflict', values: values };
+  }
+  var condition = uniqueValues[0];
+  if (WOO_DRAFT_BRIDGE_NEW_CONDITIONS_.indexOf(condition) !== -1) {
+    return { status: 'valid', condition: condition, values: values };
+  }
+  return { status: 'non_new', condition: condition, values: values };
+}
+
 function uniqueWooDraftBridgeModels_(models) {
   var seen = {};
   return models.filter(function(model) {
@@ -210,15 +238,21 @@ function classifyWooDraftBridgeSource_(row, index) {
     classified.reason = 'unsupported_brand';
     return classified;
   }
-  var condition = normalizeWooDraftBridgeText_(
-    getWooDraftBridgeValue_(row, ['condition', 'itemCondition'])
-  ).trim().replace(/\s+/g, ' ');
+  var conditionValidation = validateWooDraftBridgeConditionAliases_(row);
+  if (conditionValidation.status === 'invalid' || conditionValidation.status === 'conflict') {
+    classified.classification = 'unresolved';
+    classified.reason = conditionValidation.reason;
+    classified.detail = conditionValidation.detail || conditionValidation.values.join(' / ');
+    return classified;
+  }
+  var condition = conditionValidation.condition || '';
+  var conditionEvidence = conditionValidation.values.join(' ');
   var itemEvidence = normalizeWooDraftBridgeText_(
     title + ' ' + getWooDraftBridgeValue_(row, ['category'])
   );
-  var excluded = /\b(USED|PRE[ -]?OWNED|SECONDHAND|PARTS?|REPAIR|ACCESSOR(?:Y|IES))\b|中古|部品|アクセサリ/.test(condition + ' ' + itemEvidence);
+  var excluded = /\b(USED|PRE[ -]?OWNED|SECONDHAND|PARTS?|REPAIR|ACCESSOR(?:Y|IES))\b|中古|部品|アクセサリ/.test(conditionEvidence + ' ' + itemEvidence);
   var replacementAccessoryConflict = /\b(?:REPLACEMENT|REPLACE|SPARE)\b[^\r\n]*\b(?:BAND|STRAP|BRACELET)\b|\b(?:BAND|STRAP|BRACELET)\b[^\r\n]*\b(?:REPLACEMENT|REPLACE|SPARE)\b|交換[^\r\n]*(?:ベルト|バンド)|(?:ベルト|バンド)[^\r\n]*交換/.test(itemEvidence);
-  var explicitlyNew = WOO_DRAFT_BRIDGE_NEW_CONDITIONS_.indexOf(condition) !== -1;
+  var explicitlyNew = conditionValidation.status === 'valid';
 
   if (replacementAccessoryConflict) {
     classified.classification = 'unresolved';
@@ -393,6 +427,46 @@ function buildWooDraftBridgeDescription_(content) {
   ].join('\n');
 }
 
+function buildWooDraftBridgeCandidate_(row, source, index, result) {
+  var candidate = {
+    sourceIndex: index,
+    sourceRowNumber: source.sourceRowNumber,
+    brand: source.brand,
+    model: source.model,
+    modelKey: source.modelKey,
+    productName: source.productName,
+    source: row,
+    missingFields: []
+  };
+  var selectedPrice = getValidatedWooDraftBridgeValue_(row, ['price', 'regularPrice', 'regular_price'], isWooDraftBridgePositivePrice_);
+  var selectedImages = getValidatedWooDraftBridgeValue_(row, ['images', 'imageUrls', 'image_urls', 'image'], hasWooDraftBridgeImages_);
+  candidate.price = selectedPrice.value;
+  candidate.priceAlias = selectedPrice.alias;
+  candidate.images = selectedImages.value;
+  candidate.imagesAlias = selectedImages.alias;
+  candidate.descriptionContent = row && row.descriptionContent;
+  candidate.sourceDescription = isWooDraftBridgeNonBlankString_(row && row.description) ? row.description : '';
+  candidate.description = '';
+  candidate.missingDescriptionFields = [];
+  if (!source.productName) candidate.missingFields.push('productName');
+  if (!selectedPrice.alias) {
+    candidate.missingFields.push('price');
+    result.missingPrices.push(candidate);
+  }
+  if (!selectedImages.alias) {
+    candidate.missingFields.push('images');
+    result.missingImages.push(candidate);
+  }
+  candidate.missingDescriptionFields = getMissingWooDraftBridgeDescriptionFields_(row, source);
+  candidate.missingFields = candidate.missingFields.concat(candidate.missingDescriptionFields);
+  if (!hasWooDraftBridgeNamedReferences_(row && row.categories)) candidate.missingFields.push('categories');
+  if (!hasWooDraftBridgeNamedReferences_(row && row.tags)) candidate.missingFields.push('tags');
+  if (!isWooDraftBridgeNonBlankString_(row && row.stockPolicy)) candidate.missingFields.push('stockPolicy');
+  if (!isWooDraftBridgeNonBlankString_(row && row.shippingPolicy)) candidate.missingFields.push('shippingPolicy');
+  if (!candidate.missingFields.length) candidate.description = buildWooDraftBridgeDescription_(candidate.descriptionContent);
+  return candidate;
+}
+
 function validateWooDraftBridgeProduct_(product, sourceModels) {
   if (product === null) return 'must be a non-null object';
   if (typeof product !== 'object') return 'must be an object';
@@ -507,6 +581,7 @@ function buildWooDraftBridgePreview(sourceRows, wooProducts, options) {
     return WOO_DRAFT_BRIDGE_EXISTING_STATUSES_.indexOf(product.status) !== -1;
   });
   var firstByModel = {};
+  var seenModels = {};
 
   rows.forEach(function(row, index) {
     var source = classifyWooDraftBridgeSource_(row, index);
@@ -527,20 +602,16 @@ function buildWooDraftBridgePreview(sourceRows, wooProducts, options) {
     }
 
     result.validNewWatchRows.push(source);
-    if (firstByModel[source.modelKey]) {
-      source.firstSourceIndex = firstByModel[source.modelKey].sourceIndex;
-      source.firstSourceRowNumber = firstByModel[source.modelKey].sourceRowNumber;
-      source.reason = 'duplicate_normalized_model';
-      result.duplicates.push(source);
-      result.accounting.push({ sourceIndex: index, classification: 'duplicates' });
-      return;
+    if (!seenModels[source.modelKey]) {
+      seenModels[source.modelKey] = source;
+      result.uniqueModels.push(source);
     }
-    firstByModel[source.modelKey] = source;
-    result.uniqueModels.push(source);
-
     var matches = findWooDraftBridgeProductMatches_(relevantProducts, source.model);
     var conflictingMatches = matches.filter(function(match) { return match.conflicts.length > 0; });
     if (matches.length > 1 || conflictingMatches.length > 0) {
+      if (!firstByModel[source.modelKey]) {
+        firstByModel[source.modelKey] = source;
+      }
       var unresolvedMatch = {
         sourceIndex: source.sourceIndex,
         sourceRowNumber: source.sourceRowNumber,
@@ -558,6 +629,15 @@ function buildWooDraftBridgePreview(sourceRows, wooProducts, options) {
       return;
     }
     if (matches.length === 1) {
+      if (firstByModel[source.modelKey]) {
+        source.firstSourceIndex = firstByModel[source.modelKey].sourceIndex;
+        source.firstSourceRowNumber = firstByModel[source.modelKey].sourceRowNumber;
+        source.reason = 'duplicate_normalized_model';
+        result.duplicates.push(source);
+        result.accounting.push({ sourceIndex: index, classification: 'duplicates' });
+        return;
+      }
+      firstByModel[source.modelKey] = source;
       var resolvedMatch = matches[0];
       var existing = { source: source, matchMethod: resolvedMatch.matchMethod, products: [resolvedMatch.product] };
       result.existingWooProducts.push(existing);
@@ -571,48 +651,30 @@ function buildWooDraftBridgePreview(sourceRows, wooProducts, options) {
       return;
     }
 
-    var candidate = {
-      sourceIndex: index,
-      sourceRowNumber: source.sourceRowNumber,
-      brand: source.brand,
-      model: source.model,
-      modelKey: source.modelKey,
-      productName: source.productName,
-      source: row,
-      missingFields: []
-    };
-    var selectedPrice = getValidatedWooDraftBridgeValue_(row, ['price', 'regularPrice', 'regular_price'], isWooDraftBridgePositivePrice_);
-    var selectedImages = getValidatedWooDraftBridgeValue_(row, ['images', 'imageUrls', 'image_urls', 'image'], hasWooDraftBridgeImages_);
-    candidate.price = selectedPrice.value;
-    candidate.priceAlias = selectedPrice.alias;
-    candidate.images = selectedImages.value;
-    candidate.imagesAlias = selectedImages.alias;
-    candidate.descriptionContent = row && row.descriptionContent;
-    candidate.sourceDescription = isWooDraftBridgeNonBlankString_(row && row.description) ? row.description : '';
-    candidate.description = '';
-    candidate.missingDescriptionFields = [];
-    if (!source.productName) candidate.missingFields.push('productName');
-    if (!selectedPrice.alias) {
-      candidate.missingFields.push('price');
-      result.missingPrices.push(candidate);
-    }
-    if (!selectedImages.alias) {
-      candidate.missingFields.push('images');
-      result.missingImages.push(candidate);
-    }
-    candidate.missingDescriptionFields = getMissingWooDraftBridgeDescriptionFields_(row, source);
-    candidate.missingFields = candidate.missingFields.concat(candidate.missingDescriptionFields);
-    if (!hasWooDraftBridgeNamedReferences_(row && row.categories)) candidate.missingFields.push('categories');
-    if (!hasWooDraftBridgeNamedReferences_(row && row.tags)) candidate.missingFields.push('tags');
-    if (!isWooDraftBridgeNonBlankString_(row && row.stockPolicy)) candidate.missingFields.push('stockPolicy');
-    if (!isWooDraftBridgeNonBlankString_(row && row.shippingPolicy)) candidate.missingFields.push('shippingPolicy');
+    var candidate = buildWooDraftBridgeCandidate_(row, source, index, result);
     if (candidate.missingFields.length > 0) {
+      if (firstByModel[source.modelKey]) {
+        source.firstSourceIndex = firstByModel[source.modelKey].sourceIndex;
+        source.firstSourceRowNumber = firstByModel[source.modelKey].sourceRowNumber;
+        source.reason = 'duplicate_normalized_model';
+        result.duplicates.push(source);
+        result.accounting.push({ sourceIndex: index, classification: 'duplicates' });
+        return;
+      }
       candidate.reason = 'required_candidate_fields_missing';
       result.unresolvedRows.push(candidate);
       result.accounting.push({ sourceIndex: index, classification: 'unresolvedRows' });
       return;
     }
-    candidate.description = buildWooDraftBridgeDescription_(candidate.descriptionContent);
+    if (firstByModel[source.modelKey]) {
+      source.firstSourceIndex = firstByModel[source.modelKey].sourceIndex;
+      source.firstSourceRowNumber = firstByModel[source.modelKey].sourceRowNumber;
+      source.reason = 'duplicate_normalized_model';
+      result.duplicates.push(source);
+      result.accounting.push({ sourceIndex: index, classification: 'duplicates' });
+      return;
+    }
+    firstByModel[source.modelKey] = source;
     result.newDraftCandidates.push(candidate);
     result.accounting.push({ sourceIndex: index, classification: 'newDraftCandidates' });
   });
