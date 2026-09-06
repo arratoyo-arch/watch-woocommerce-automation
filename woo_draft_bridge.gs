@@ -86,6 +86,57 @@ function parseWooDraftBridgeExplicitModels_(value) {
   }).filter(Boolean));
 }
 
+function validateWooDraftBridgeSourceModelAliases_(row) {
+  var fields = ['model', 'modelNumber', 'model_number'];
+  var supplied = false;
+  var values = [];
+  var invalid = '';
+  for (var fieldIndex = 0; fieldIndex < fields.length; fieldIndex++) {
+    var field = fields[fieldIndex];
+    if (!row || !Object.prototype.hasOwnProperty.call(row, field)) continue;
+    supplied = true;
+    var value = row[field];
+    if (typeof value === 'string') {
+      if (!value.trim() || !getValidWooDraftBridgeModelKey_(value)) {
+        invalid = field + ' must be a complete valid model identity';
+        break;
+      }
+      values.push(value);
+      continue;
+    }
+    if (!Array.isArray(value) || value.length === 0) {
+      invalid = field + ' must be a non-empty dense string array';
+      break;
+    }
+    for (var itemIndex = 0; itemIndex < value.length; itemIndex++) {
+      if (!Object.prototype.hasOwnProperty.call(value, itemIndex)) {
+        invalid = field + '[' + itemIndex + '] is missing (sparse array)';
+        break;
+      }
+      if (typeof value[itemIndex] !== 'string' || !value[itemIndex].trim() || !getValidWooDraftBridgeModelKey_(value[itemIndex])) {
+        invalid = field + '[' + itemIndex + '] must be a complete valid model identity';
+        break;
+      }
+      values.push(value[itemIndex]);
+    }
+    if (invalid) break;
+  }
+  if (invalid) return { status: 'invalid', reason: 'source_model_alias_invalid', detail: invalid, values: [] };
+  if (!supplied) return { status: 'missing', reason: 'structured_model_missing', values: [] };
+  var keys = {};
+  var uniqueKeys = [];
+  values.forEach(function(value) {
+    var key = getValidWooDraftBridgeModelKey_(value);
+    if (!keys[key]) {
+      keys[key] = true;
+      uniqueKeys.push(key);
+    }
+  });
+  if (!uniqueKeys.length) return { status: 'invalid', reason: 'source_model_alias_invalid', detail: 'no valid model identity', values: [] };
+  if (uniqueKeys.length > 1) return { status: 'ambiguous', reason: 'multiple_model_candidates', values: values, keys: uniqueKeys };
+  return { status: 'valid', reason: '', values: values, keys: uniqueKeys };
+}
+
 function escapeWooDraftBridgeRegex_(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -180,28 +231,31 @@ function classifyWooDraftBridgeSource_(row, index) {
     return classified;
   }
 
-  var explicitValue = getWooDraftBridgeValue_(row, ['model', 'modelNumber', 'model_number']);
-  var models = parseWooDraftBridgeExplicitModels_(explicitValue);
-  if (!models.length && !String(explicitValue || '').trim()) {
+  var modelValidation = validateWooDraftBridgeSourceModelAliases_(row);
+  if (modelValidation.status === 'missing') {
     classified.classification = 'unresolved';
-    classified.reason = 'structured_model_missing';
+    classified.reason = modelValidation.reason;
     classified.modelCandidates = [];
     return classified;
   }
-  var validModels = models.filter(function(model) {
-    return !!getValidWooDraftBridgeModelKey_(model);
-  });
-  if (validModels.length !== 1) {
-    classified.classification = validModels.length > 1 ? 'unresolved' : 'invalid';
-    classified.reason = validModels.length > 1 ? 'multiple_model_candidates' : 'model_unknown_or_invalid';
-    classified.modelCandidates = validModels;
+  if (modelValidation.status === 'invalid') {
+    classified.classification = 'invalid';
+    classified.reason = modelValidation.reason;
+    classified.detail = modelValidation.detail;
+    classified.modelCandidates = [];
+    return classified;
+  }
+  if (modelValidation.status === 'ambiguous') {
+    classified.classification = 'unresolved';
+    classified.reason = modelValidation.reason;
+    classified.modelCandidates = modelValidation.values;
     return classified;
   }
 
   classified.classification = 'valid';
   classified.brand = distinctBrands[0];
-  classified.model = validModels[0];
-  classified.modelKey = normalizeWooDraftBridgeModelKey_(validModels[0]);
+  classified.model = modelValidation.values[0];
+  classified.modelKey = modelValidation.keys[0];
   classified.productName = title;
   return classified;
 }

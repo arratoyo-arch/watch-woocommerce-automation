@@ -130,8 +130,8 @@ for (const name of ['Seiko SBTR026 / SBTR037 Watch', 'Seiko SBTR026, SBTR037 Wat
 const sourceBoundaryResult = bridge.buildWooDraftBridgePreview([
   sourceRow({ model: '', title: 'LONGPREFIXSBTR026TAIL', brand: 'SEIKO' })
 ], [], { wooFetchComplete: true });
-assert.strictEqual(sourceBoundaryResult.unresolvedRows.length, 1, 'source title without structured model must remain unresolved');
-assert.strictEqual(sourceBoundaryResult.unresolvedRows[0].reason, 'structured_model_missing');
+assert.strictEqual(sourceBoundaryResult.invalidModels.length, 1, 'source title without structured model field must be invalid');
+assert.strictEqual(sourceBoundaryResult.invalidModels[0].reason, 'source_model_alias_invalid');
 assert.strictEqual(sourceBoundaryResult.accountingComplete, true);
 
 let result = bridge.buildWooDraftBridgePreview(
@@ -195,8 +195,62 @@ result = bridge.buildWooDraftBridgePreview([
   sourceRow({ brand: 'CITIZEN', model: 'NB1050-59E|NB1050-59A', title: 'Citizen New Watch' }),
   sourceRow({ brand: 'ORIENT', model: '', title: 'Orient RN-AA0811E RN-AA0812L New Watch' })
 ], [], { wooFetchComplete: true });
-assert.strictEqual(result.invalidModels.length, 0);
-assert.strictEqual(result.unresolvedRows.length, 3);
+assert.strictEqual(result.invalidModels.length, 3);
+assert.strictEqual(result.unresolvedRows.length, 0);
+
+const invalidSourceModelAliases = [
+  { label: 'null first array element', model: [null, 'GBD-200-9JF'] },
+  { label: 'null second array element', model: ['GBD-200-9JF', null] },
+  { label: 'invalid second array element', model: ['GBD-200-9JF', 'not-a-model'] },
+  { label: 'invalid first array element', model: ['not-a-model', 'GBD-200-9JF'] },
+  { label: 'sparse model array', model: Object.assign(new Array(2), { 1: 'GBD-200-9JF' }) },
+  { label: 'empty model array', model: [] },
+  { label: 'empty model element', model: [''] },
+  { label: 'blank model element', model: ['   '] },
+  { label: 'boolean model element', model: [true, 'GBD-200-9JF'] },
+  { label: 'nested model array', model: [['GBD-200-9JF']] },
+  { label: 'invalid delimited model string', model: 'GBD-200-9JF|not-a-model' },
+  { label: 'different model array values', model: ['GBD-200-9JF', 'SBTR026'] },
+  { label: 'different model aliases', model: 'GBD-200-9JF', modelNumber: 'SBTR026' },
+  { label: 'null model with valid modelNumber', model: null, modelNumber: 'GBD-200-9JF' },
+  { label: 'invalid model with valid modelNumber', model: 'not-a-model', modelNumber: 'GBD-200-9JF' }
+];
+for (const fixture of invalidSourceModelAliases) {
+  const row = sourceRow(Object.assign({ title: 'Casio GBD-200-9JF Watch' }, fixture));
+  const before = JSON.stringify(row);
+  result = bridge.buildWooDraftBridgePreview([row], [], { wooFetchComplete: true });
+  assert.strictEqual(result.validNewWatchRows.length, 0, fixture.label);
+  assert.strictEqual(result.newDraftCandidates.length, 0, fixture.label);
+  assert.deepStrictEqual(result.firstFiveCandidates, [], fixture.label);
+  assert.strictEqual(result.accounting.length, 1, fixture.label);
+  assert.strictEqual(result.accountingComplete, true, fixture.label);
+  assert.strictEqual(JSON.stringify(row), before, fixture.label);
+  const classified = result.invalidModels.length ? result.invalidModels : result.unresolvedRows;
+  assert.strictEqual(classified.length, 1, fixture.label);
+  assert.ok(classified[0].reason === 'source_model_alias_invalid' || classified[0].reason === 'multiple_model_candidates', fixture.label);
+}
+
+function sourceWithValidatedDescriptionModel(overrides) {
+  const row = sourceRow(overrides);
+  if (overrides.removeModel) delete row.model;
+  row.descriptionContent = Object.assign({}, row.descriptionContent, { model: 'GBD-200-9JF' });
+  return row;
+}
+for (const fixture of [
+  { label: 'model string', overrides: { model: 'GBD-200-9JF' } },
+  { label: 'modelNumber string', overrides: { removeModel: true, modelNumber: 'GBD-200-9JF' } },
+  { label: 'model_number string', overrides: { removeModel: true, model_number: 'GBD-200-9JF' } },
+  { label: 'single model array', overrides: { model: ['GBD-200-9JF'] } },
+  { label: 'same model array variants', overrides: { model: ['GBD-200-9JF', 'GBD2009JF', 'GBD 200 9JF'] } },
+  { label: 'same model aliases', overrides: { model: 'GBD-200-9JF', modelNumber: 'GBD2009JF', model_number: 'GBD 200 9JF' } }
+]) {
+  result = bridge.buildWooDraftBridgePreview([sourceWithValidatedDescriptionModel(fixture.overrides)], [], { wooFetchComplete: true });
+  assert.strictEqual(result.invalidModels.length, 0, fixture.label);
+  assert.strictEqual(result.unresolvedRows.length, 0, fixture.label);
+  assert.strictEqual(result.validNewWatchRows.length, 1, fixture.label);
+  assert.strictEqual(result.newDraftCandidates.length, 1, fixture.label);
+  assert.strictEqual(result.accountingComplete, true, fixture.label);
+}
 
 result = bridge.buildWooDraftBridgePreview([
   sourceRow({ condition: 'Used' }),
